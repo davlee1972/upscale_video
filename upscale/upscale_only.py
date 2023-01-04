@@ -8,12 +8,8 @@ import logging
 import os
 import subprocess
 import tempfile
-import shutil
 import sys
-import cv2
 from ncnn_vulkan import ncnn
-import numpy as np
-import math
 from multiprocessing import Pool
 
 from upscale_processing import (

@@ -14,7 +14,6 @@ import numpy as np
 import math
 import json
 from multiprocessing import Pool
-import math
 
 
 def get_metadata(ffmpeg, input_file):
