@@ -17,7 +17,7 @@ import math
 from multiprocessing import Pool
 
 from upscale_processing import (
-    get_frames_per_sec,
+    get_metadata,
     get_crop_detect,
     process_model,
     process_denoise,
@@ -83,7 +83,7 @@ def upscale_only(
     if not temp_dir:
         temp_dir = tempfile.gettempdir()
 
-    temp_dir = os.path.join(temp_dir, "upscale_video")
+    temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
     if not os.path.exists(temp_dir):
         os.mkdir(temp_dir)
 
@@ -99,16 +99,16 @@ def upscale_only(
 
         set_keepawake(keep_screen_awake=False)
 
-    ## get fps
-    frames_per_sec, frames_count = get_frames_per_sec(ffmpeg, input_file)
-    logging.info("Number of frames: " + str(frames_count))
-    logging.info("Frames per second: " + str(frames_per_sec))
-    ## calculate frames per minute
-    frames_per_batch = int(frames_per_sec * 60)
+    ## get metadata
+    info_dict = get_metadata(ffmpeg, input_file)
 
-    crop_detect = get_crop_detect(
-        ffmpeg, input_file, int(frames_count / frames_per_sec / 20)
-    )
+    frames_count = info_dict["number_of_frames"]
+    frame_rate = info_dict["frame_rate"]
+
+    ## calculate frames per minute
+    frames_per_batch = int(frame_rate * 60)
+
+    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
 
     cmds = [
         ffmpeg,
@@ -124,9 +124,15 @@ def upscale_only(
     ]
 
     if crop_detect:
-        logging.info("Final Crop: " + crop_detect)
+        logging.info("Crop Detected: " + crop_detect)
         cmds.append("-vf")
-        cmds.append(crop_detect)
+        if "prune" in info_dict:
+            cmds.append(crop_detect + "," + info_dict["prune"])
+        else:
+            cmds.append(crop_detect)
+    elif "prune" in info_dict:
+        cmds.append("-vf")
+        cmds.append(info_dict)
 
     cmds.append("%d.extract.png")
 
@@ -239,7 +245,6 @@ def upscale_only(
             frame_batch,
             start_frame,
             end_frame,
-            frames_per_sec,
             scale,
             input_name,
             output_name,

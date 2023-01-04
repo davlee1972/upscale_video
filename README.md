@@ -99,8 +99,3 @@ Upscaled 2x with light denoise using --scale 2 --denoise 3. Denoise added an add
 # Notes
 
 This python code is used to scale my existing 2k bluray collecion to 4k
-
-Source framerates are assumed to be more or less consistent. 
-A frames per second calculation is performed taking total number of frames / duration.
-It should come out to 23.976 fps for most movies.
-This fps is used to reassemble the upscaled png images into a video file at the very end.

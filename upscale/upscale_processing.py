@@ -12,95 +12,144 @@ import cv2
 from ncnn_vulkan import ncnn
 import numpy as np
 import math
+import json
 from multiprocessing import Pool
+import math
 
 
-def get_frames_per_sec(ffmpeg, input_file):
-    logging.info("Getting frame timestamps from " + str(input_file))
-    if not os.path.exists("timecode.txt"):
+def get_metadata(ffmpeg, input_file):
+    logging.info("Getting metadata from " + str(input_file))
+    if os.path.exists("metadata.json"):
+        info_dict = json.loads(open("metadata.json").read())
+        frames_count = info_dict["number_of_frames"]
+        duration = info_dict["duration"]
+        frame_rate = info_dict["frame_rate"]
+    else:
         result = subprocess.run(
             [
-                ffmpeg,
+                ffmpeg[:-6] + "ffprobe",
                 "-hide_banner",
-                "-hwaccel",
-                "auto",
-                "-i",
-                input_file,
-                "-f",
-                "mkvtimestamp_v2",
+                "-v",
+                "quiet",
+                "-show_format",
+                "-select_streams",
+                "v:0",
+                "-count_packets",
+                "-show_entries",
+                "stream=nb_read_packets,r_frame_rate",
+                "-print_format",
+                "json",
                 "-loglevel",
                 "error",
-                "timecode.txt",
+                "-i",
+                input_file,
             ],
             capture_output=True,
             text=True,
         )
 
         if result.stderr:
-            logging.error("Error with getting frame timestamps.")
+            logging.error("Error getting metadata.")
             logging.error(str(result.stderr))
             logging.error(str(result.args))
-            sys.exit("Error with getting frame timestamps.")
+            sys.exit("Error getting metadata.")
 
-    with open("timecode.txt") as f:
-        skip_header_comment_line = next(f)  ## timecode format v2
-        lines = f.read().rstrip()
+        info_dict = json.loads(result.stdout)
 
-    frame_timestamps = [int(timestamp) for timestamp in lines.split("\n")]
-    frames_per_sec = len(frame_timestamps) / frame_timestamps[-1] * 1000
-    return frames_per_sec, len(frame_timestamps)
+        duration = float(info_dict["format"]["duration"])
+        frames_count = int(info_dict["streams"][0]["nb_read_packets"])
+        frame_rate = eval(info_dict["streams"][0]["r_frame_rate"])
+
+        info_dict["number_of_frames"] = frames_count
+        info_dict["duration"] = duration
+        info_dict["frame_rate"] = frame_rate
+
+        with open("metadata.json", "w") as f:
+            f.write(json.dumps(info_dict))
+
+    logging.info("Number of frames: " + str(frames_count))
+    logging.info("Duration: " + str(duration))
+    logging.info("Frames per second: " + str(frame_rate))
+
+    frame_rate_check = round(duration * frame_rate / frames_count, 2)
+    if frame_rate_check != 1:
+        logging.info(
+            "Frame rates mismatch detected: "
+            + str(round(frames_count / duration, 2))
+            + " vs "
+            + str(round(frame_rate, 2))
+        )
+        logging.info(
+            "Will attempt to adjust frame rate and number of frames to extract"
+        )
+        info_dict["number_of_frames"] = round(frames_count * frame_rate_check, 0)
+        for i in range(1, 10):
+            test = frame_rate_check * i
+            if round(test, 0) == round(test, 2) and round(test - i, 2) == 1:
+                info_dict["frame_rate"] = round(frames_count / duration, 4)
+                info_dict["number_of_frames"] = int(
+                    info_dict["streams"][0]["nb_read_packets"]
+                )
+                info_dict["prune"] = "decimate=cycle=" + str(int(test))
+                logging.info(
+                    "Corrected framerate is: " + str(round(info_dict["frame_rate"], 4))
+                )
+                logging.info("1 out of " + str(int(test)) + " frames will be pruned")
+                break
+
+    return info_dict
 
 
-def get_crop_detect(ffmpeg, input_file, interval_check):
-    logging.info("Getting crop_filter from " + str(input_file))
+def get_crop_detect(ffmpeg, input_file, temp_dir):
+    logging.info("Getting crop_detect from " + str(input_file))
+
     if os.path.exists("crop_detect.txt"):
         with open("crop_detect.txt") as f:
             crop = f.read()
-        return crop
+    else:
 
-    width = []
-    height = []
+        path, file_name = os.path.split(input_file)
+        os.chdir(path)
 
-    for i in range(19):
-        results = subprocess.run(
+        result = subprocess.run(
             [
-                ffmpeg,
+                ffmpeg[:-6] + "ffprobe",
                 "-hide_banner",
-                "-ss",
-                str(interval_check * (i + 1)),
-                "-i",
-                input_file,
-                "-vframes",
-                "10",
-                "-vf",
-                "cropdetect",
+                "-v",
+                "quiet",
                 "-f",
-                "null",
-                "-",
+                "lavfi",
+                "-i",
+                "movie=" + file_name + ",cropdetect",
+                "-show_entries",
+                "packet_tags=lavfi.cropdetect.w,lavfi.cropdetect.h,lavfi.cropdetect.x,lavfi.cropdetect.y",
+                "-print_format",
+                "json",
+                "-loglevel",
+                "error",
             ],
             capture_output=True,
             text=True,
         )
-        results = str(results).split(" ")
-        for result_str in results:
-            if result_str.startswith("crop="):
-                crop = result_str.split("""\\n""")[0]
-                logging.info("Crop Detected: " + crop)
-                n_w, n_h, n_x, n_y = crop[5:].split(":")
-                width.append((n_w, n_x))
-                height.append((n_h, n_y))
-                break
 
-    if width and height:
-        width = max(set(width), key=width.count)
-        height = max(set(height), key=height.count)
+        os.chdir(temp_dir)
 
-        crop = "crop=" + ":".join([width[0], height[0], width[1], height[1]])
-    else:
-        crop = ""
+        if result.stderr:
+            logging.error("Error with getting crop detect.")
+            logging.error(str(result.stderr))
+            logging.error(str(result.args))
+            sys.exit("Error with getting crop detect.")
 
-    with open("crop_detect.txt", "w") as f:
-        f.write(crop)
+        crop_list = json.loads(result.stdout)["packets"]
+        crop_list = [
+            "crop=" + ":".join(row["tags"].values())
+            for row in crop_list
+            if "tags" in row and row["tags"] != {}
+        ]
+        crop = max(set(crop_list), key=crop_list.count)
+
+        with open("crop_detect.txt", "w") as f:
+            f.write(crop)
 
     return crop
 
@@ -291,7 +340,7 @@ def merge_frames(
     frame_batch,
     start_frame,
     end_frame,
-    frames_per_sec,
+    frame_rate,
 ):
 
     cmds = [
@@ -300,7 +349,7 @@ def merge_frames(
         "-hwaccel",
         "auto",
         "-r",
-        str(frames_per_sec),
+        str(frame_rate),
         "-f",
         "image2",
         "-start_number",
@@ -353,7 +402,6 @@ def upscale_frames(
     frame_batch,
     start_frame,
     end_frame,
-    frames_per_sec,
     scale,
     input_name,
     output_name,
@@ -500,7 +548,7 @@ def process_file(
     if not temp_dir:
         temp_dir = tempfile.gettempdir()
 
-    temp_dir = os.path.join(temp_dir, "upscale_video")
+    temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
     if os.path.exists(temp_dir):
         if not resume_processing:
             shutil.rmtree(temp_dir)
@@ -520,16 +568,16 @@ def process_file(
 
         set_keepawake(keep_screen_awake=False)
 
-    ## get fps
-    frames_per_sec, frames_count = get_frames_per_sec(ffmpeg, input_file)
-    logging.info("Number of frames: " + str(frames_count))
-    logging.info("Frames per second: " + str(frames_per_sec))
-    ## calculate frames per minute
-    frames_per_batch = int(frames_per_sec * 60) * batch_size
+    ## get metadata
+    info_dict = get_metadata(ffmpeg, input_file)
 
-    crop_detect = get_crop_detect(
-        ffmpeg, input_file, int(frames_count / frames_per_sec / 20)
-    )
+    frames_count = info_dict["number_of_frames"]
+    frame_rate = info_dict["frame_rate"]
+
+    ## calculate frames per minute
+    frames_per_batch = int(frame_rate * 60) * batch_size
+
+    crop_detect = get_crop_detect(ffmpeg, file_name, temp_dir)
 
     cmds = [
         ffmpeg,
@@ -545,9 +593,15 @@ def process_file(
     ]
 
     if crop_detect:
-        logging.info("Final Crop: " + crop_detect)
+        logging.info("Crop Detected: " + crop_detect)
         cmds.append("-vf")
-        cmds.append(crop_detect)
+        if "prune" in info_dict:
+            cmds.append(crop_detect + "," + info_dict["prune"])
+        else:
+            cmds.append(crop_detect)
+    elif "prune" in info_dict:
+        cmds.append("-vf")
+        cmds.append(info_dict)
 
     cmds.append("%d.extract.png")
 
@@ -660,7 +714,6 @@ def process_file(
             frame_batch,
             start_frame,
             end_frame,
-            frames_per_sec,
             scale,
             input_name,
             output_name,
@@ -673,7 +726,7 @@ def process_file(
                 frame_batch,
                 start_frame,
                 end_frame,
-                frames_per_sec,
+                frame_rate,
             )
             == -1
         ):

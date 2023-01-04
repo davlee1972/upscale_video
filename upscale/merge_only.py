@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import sys
 
-from upscale_processing import get_frames_per_sec, merge_frames, merge_mkvs
+from upscale_processing import get_meta_data, merge_frames, merge_mkvs
 
 
 def merge_only(
@@ -58,7 +58,7 @@ def merge_only(
     if not temp_dir:
         temp_dir = tempfile.gettempdir()
 
-    temp_dir = os.path.join(temp_dir, "upscale_video")
+    temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
 
     ## change working directory to temp directory
     cwd_dir = os.getcwd()
@@ -72,12 +72,14 @@ def merge_only(
 
         set_keepawake(keep_screen_awake=False)
 
-    ## get fps
-    frames_per_sec, frames_count = get_frames_per_sec(ffmpeg, input_file)
-    logging.info("Number of frames: " + str(frames_count))
-    logging.info("Frames per second: " + str(frames_per_sec))
+    ## get metadata
+    info_dict = get_metadata(ffmpeg, input_file)
+
+    frames_count = info_dict["number_of_frames"]
+    frame_rate = info_dict["frame_rate"]
+
     ## calculate frames per minute
-    frames_per_batch = int(frames_per_sec * 60) * batch_size
+    frames_per_batch = int(frame_rate * 60) * batch_size
 
     frame_batch = 1
     end_frame = 0
@@ -107,7 +109,7 @@ def merge_only(
                 frame_batch,
                 start_frame,
                 end_frame,
-                frames_per_sec,
+                frame_rate,
             )
             == -1
         ):
