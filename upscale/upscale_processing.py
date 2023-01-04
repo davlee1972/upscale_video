@@ -586,7 +586,7 @@ def process_file(
     ## calculate frames per minute
     frames_per_batch = int(frame_rate * 60) * batch_size
 
-    crop_detect = get_crop_detect(ffmpeg, file_name, temp_dir)
+    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
 
     cmds = [
         ffmpeg,
