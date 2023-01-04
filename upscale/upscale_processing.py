@@ -75,9 +75,9 @@ def get_metadata(ffmpeg, input_file):
     if frame_rate_check != 1:
         logging.info(
             "Frame rates mismatch detected: "
-            + str(round(frames_count / duration, 2))
+            + str(round(frames_count / duration, 4))
             + " vs "
-            + str(round(frame_rate, 2))
+            + str(round(frame_rate, 4))
         )
         info_dict["frame_rate"] = round(frames_count / duration, 4)
         logging.info(
