@@ -126,7 +126,13 @@ def upscale_only(
     if crop_detect:
         logging.info("Crop Detected: " + crop_detect)
         cmds.append("-vf")
-        cmds.append(crop_detect)
+        if "prune" in info_dict:
+            cmds.append(crop_detect + "," + info_dict["prune"])
+        else:
+            cmds.append(crop_detect)
+    elif "prune" in info_dict:
+        cmds.append("-vf")
+        cmds.append(info_dict)
 
     cmds.append("%d.extract.png")
 

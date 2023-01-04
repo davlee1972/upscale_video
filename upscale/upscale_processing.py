@@ -75,14 +75,36 @@ def get_metadata(ffmpeg, input_file):
     if frame_rate_check != 1:
         logging.info(
             "Frame rates mismatch detected: "
-            + str(round(frames_count / duration, 4))
+            + str(round(frames_count / duration, 2))
             + " vs "
-            + str(round(frame_rate, 4))
+            + str(round(frame_rate, 2))
         )
-        info_dict["frame_rate"] = round(frames_count / duration, 4)
         logging.info(
-            "Corrected framerate is: " + str(round(info_dict["frame_rate"], 4))
+            "Will attempt to adjust frame rate and number of frames to extract"
         )
+        info_dict["number_of_frames"] = round(frames_count * frame_rate_check, 0)
+        for i in range(1, 10):
+            test = frame_rate_check * i
+            if round(test, 0) == round(test, 2) and round(test - i, 2) == 1:
+                test = int(test)
+                info_dict["prune"] = (
+                    "fps="
+                    + str(info_dict["frame_rate"])
+                    + ",fieldmatch=order=tff:mode=pc,decimate=cycle="
+                    + str(test)
+                )
+                ##info_dict["prune"] = "fps=" + str(info_dict["frame_rate"])
+                info_dict["frame_rate"] = round(frames_count / duration, 4)
+                info_dict["number_of_frames"] = int(
+                    info_dict["streams"][0]["nb_read_packets"]
+                )
+                logging.info(
+                    "Corrected framerate is: " + str(round(info_dict["frame_rate"]))
+                )
+                logging.info(
+                    "1 out of every " + str(test) + " duplicate frames will be pruned.."
+                )
+                break
 
     return info_dict
 
@@ -582,7 +604,13 @@ def process_file(
     if crop_detect:
         logging.info("Crop Detected: " + crop_detect)
         cmds.append("-vf")
-        cmds.append(crop_detect)
+        if "prune" in info_dict:
+            cmds.append(crop_detect + "," + info_dict["prune"])
+        else:
+            cmds.append(crop_detect)
+    elif "prune" in info_dict:
+        cmds.append("-vf")
+        cmds.append(info_dict)
 
     cmds.append("%d.extract.png")
 
@@ -598,6 +626,7 @@ def process_file(
 
         if result.stderr:
             logging.error(str(result.stderr))
+
             logging.error(str(result.args))
             sys.exit("Error with extracting frames.")
 
