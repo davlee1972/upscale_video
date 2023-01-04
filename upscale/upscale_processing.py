@@ -79,23 +79,10 @@ def get_metadata(ffmpeg, input_file):
             + " vs "
             + str(round(frame_rate, 2))
         )
+        info_dict["frame_rate"] = round(frames_count / duration, 4)
         logging.info(
-            "Will attempt to adjust frame rate and number of frames to extract"
+            "Corrected framerate is: " + str(round(info_dict["frame_rate"], 4))
         )
-        info_dict["number_of_frames"] = round(frames_count * frame_rate_check, 0)
-        for i in range(1, 10):
-            test = frame_rate_check * i
-            if round(test, 0) == round(test, 2) and round(test - i, 2) == 1:
-                info_dict["frame_rate"] = round(frames_count / duration, 4)
-                info_dict["number_of_frames"] = int(
-                    info_dict["streams"][0]["nb_read_packets"]
-                )
-                info_dict["prune"] = "decimate=cycle=" + str(int(test))
-                logging.info(
-                    "Corrected framerate is: " + str(round(info_dict["frame_rate"], 4))
-                )
-                logging.info("1 out of " + str(int(test)) + " frames will be pruned")
-                break
 
     return info_dict
 
@@ -595,13 +582,7 @@ def process_file(
     if crop_detect:
         logging.info("Crop Detected: " + crop_detect)
         cmds.append("-vf")
-        if "prune" in info_dict:
-            cmds.append(crop_detect + "," + info_dict["prune"])
-        else:
-            cmds.append(crop_detect)
-    elif "prune" in info_dict:
-        cmds.append("-vf")
-        cmds.append(info_dict)
+        cmds.append(crop_detect)
 
     cmds.append("%d.extract.png")
 
