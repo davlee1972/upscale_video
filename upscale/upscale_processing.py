@@ -79,7 +79,7 @@ def get_metadata(ffmpeg, input_file):
             + str(round(frame_rate, 2))
         )
         logging.info(
-            "Will attempt to adjust frame rate and number of frames to extract"
+            "Will attempt to adjust frame rate.."
         )
         info_dict["number_of_frames"] = round(frames_count * frame_rate_check, 0)
         for i in range(1, 10):
