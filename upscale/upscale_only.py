@@ -246,7 +246,7 @@ def upscale_only(
             output_name,
         )
 
-        with open("batch" + str(frame_batch) + ".upscaled.txt", "w") as f:
+        with open("batch." + str(frame_batch) + ".upscaled.txt", "w") as f:
             f.write("Upscaled")
 
         frame_batch += 1
