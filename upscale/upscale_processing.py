@@ -342,6 +342,56 @@ def upscale_image(
         cv2.imwrite(output_file_name, output)
 
 
+def upscale_frames(
+    net,
+    input_model_name,
+    frame_batch,
+    start_frame,
+    end_frame,
+    scale,
+    input_name,
+    output_name,
+):
+
+    logging.info(
+        "Upscaling Batch: "
+        + str(frame_batch)
+        + " : Number of frames: "
+        + str(1 + end_frame - start_frame)
+    )
+
+    frames_upscaled = 0
+
+    ## upscale frames
+    for frame in range(start_frame, end_frame + 1):
+
+        output_file_name = str(frame) + ".png"
+        input_file_name = str(frame) + "." + input_model_name + ".png"
+
+        if os.path.exists(output_file_name):
+            frames_upscaled += 1
+            continue
+
+        upscale_image(
+            input_file_name, output_file_name, scale, net, input_name, output_name
+        )
+
+        frames_upscaled += 1
+
+        logging.info(
+            "Upscaling Batch: "
+            + str(frame_batch)
+            + " : Upscaled "
+            + str(frames_upscaled)
+            + "/"
+            + str(1 + end_frame - start_frame)
+        )
+
+    ## delete upscaled png files
+    for frame in range(start_frame, end_frame + 1):
+        os.remove(str(frame) + "." + input_model_name + ".png")
+
+
 def merge_frames(
     ffmpeg,
     ffmpeg_encoder,
@@ -397,59 +447,11 @@ def merge_frames(
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
 
-    ## delete converted png files
-    for i in range(start_frame, end_frame + 1):
-        os.remove(str(i) + ".png")
+    ## delete merged png files
+    for frame in range(start_frame, end_frame + 1):
+        os.remove(str(frame) + ".png")
 
     return 0
-
-
-def upscale_frames(
-    net,
-    input_model_name,
-    frame_batch,
-    start_frame,
-    end_frame,
-    scale,
-    input_name,
-    output_name,
-):
-
-    logging.info(
-        "Upscaling Batch: "
-        + str(frame_batch)
-        + " : Number of frames: "
-        + str(1 + end_frame - start_frame)
-    )
-
-    frames_upscaled = 0
-
-    ## upscale frames
-    for frame in range(start_frame, end_frame + 1):
-
-        output_file_name = str(frame) + ".png"
-        input_file_name = str(frame) + "." + input_model_name + ".png"
-
-        if os.path.exists(output_file_name):
-            frames_upscaled += 1
-            continue
-
-        upscale_image(
-            input_file_name, output_file_name, scale, net, input_name, output_name
-        )
-
-        os.remove(input_file_name)
-
-        frames_upscaled += 1
-
-        logging.info(
-            "Upscaling Batch: "
-            + str(frame_batch)
-            + " : Upscaled "
-            + str(frames_upscaled)
-            + "/"
-            + str(1 + end_frame - start_frame)
-        )
 
 
 def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):

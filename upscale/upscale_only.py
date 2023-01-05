@@ -229,7 +229,7 @@ def upscale_only(
         else:
             end_frame = frames_count
 
-        if os.path.exists(str(frame_batch) + ".mkv"):
+        if os.path.exists("batch." + str(frame_batch) + ".upscaled.txt"):
             frame_batch += 1
             continue
 
@@ -246,10 +246,16 @@ def upscale_only(
             output_name,
         )
 
+        with open("batch" + str(frame_batch) + ".upscaled.txt", "w") as f:
+            f.write("Upscaled")
+
         frame_batch += 1
 
     ncnn.destroy_gpu_instance()
     del net
+
+    with open("completed.txt", "w") as f:
+        f.write("Completed")
 
     os.chdir(cwd_dir)
 
