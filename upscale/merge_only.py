@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import sys
 
-from upscale_processing import get_meta_data, merge_frames, merge_mkvs
+from upscale_processing import get_metadata, merge_frames, merge_mkvs
 
 
 def merge_only(
@@ -52,7 +52,7 @@ def merge_only(
         fh.setLevel(logging.DEBUG)
         logging.getLogger().addHandler(fh)
 
-    logging.info("Processing File: " + input_file)
+    logging.info("Processing File: " + output_file)
 
     ## Create temp directory
     if not temp_dir:
@@ -64,7 +64,7 @@ def merge_only(
     cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
-    if path.exists("completed.txt"):
+    if os.path.exists("completed.txt"):
         sys.exit(input_file + "already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
@@ -73,7 +73,7 @@ def merge_only(
         set_keepawake(keep_screen_awake=False)
 
     ## get metadata
-    info_dict = get_metadata(ffmpeg, input_file)
+    info_dict = get_metadata(ffmpeg, None)
 
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
@@ -99,8 +99,8 @@ def merge_only(
         for frame in range(start_frame, end_frame + 1):
             input_file_name = str(frame) + ".png"
             if not os.path.exists(input_file_name):
-                logging.error(input_file_name + "not found - Exiting")
-                sys.exit(input_file_name + "not found - Exiting")
+                logging.error(input_file_name + " not found - Exiting")
+                sys.exit(input_file_name + " not found - Exiting")
 
         if (
             merge_frames(

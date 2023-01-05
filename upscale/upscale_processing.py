@@ -98,10 +98,10 @@ def get_metadata(ffmpeg, input_file):
                     info_dict["streams"][0]["nb_read_packets"]
                 )
                 logging.info(
-                    "Corrected framerate is: " + str(round(info_dict["frame_rate"]))
+                    "Corrected framerate is: " + str(info_dict["frame_rate"])
                 )
                 logging.info(
-                    "1 out of every " + str(test) + " duplicate frames will be pruned.."
+                    "1 out of every " + str(test) + " frames will be pruned for duplicates.."
                 )
                 break
 
