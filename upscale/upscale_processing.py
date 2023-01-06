@@ -438,6 +438,8 @@ def merge_frames(
     result = subprocess.run(cmds, capture_output=True, text=True)
 
     if result.stderr:
+        if os.path.exists(str(frame_batch) + ".mkv"):
+            os.remove(str(frame_batch) + ".mkv")
         logging.error("PNG merging Failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
