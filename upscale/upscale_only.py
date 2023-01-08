@@ -113,7 +113,7 @@ def upscale_only(
         "auto",
         "-i",
         input_file,
-        "-log_level",
+        "-loglevel",
         "error",
         "-pix_fmt",
         "rgb24",
