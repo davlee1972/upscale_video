@@ -14,9 +14,13 @@ Running test_gpu.py will list out Vulkan compatible GPUs and other info.
 Make sure you are passing in a ffmpeg encoder that is compatible with your system.
 The default is "av1_qsv" since I'm using an Intel Arc A750 GPU which supports AV1 hardware encoding.
 
+Also make sure you have the latest Mesa drivers installed if on linux (see Notes below).
+
 List of ffmpeg encoders is here: https://ffmpeg.org/ffmpeg-codecs.html#Video-Encoders.
 
 # Installation
+
+Python 3.6 through 3.10. 3.11 isn't supported yet as of Jan 8th, 2023.
 
 Download and install ffmpeg: https://ffmpeg.org/download.html
 
@@ -99,3 +103,50 @@ Upscaled 2x with light denoise using --scale 2 --denoise 3. Denoise added an add
 # Notes
 
 This python code is used to scale my existing 2k bluray collecion to 4k
+
+Troubleshooting Ubuntu. It took me a while to figure out why my AMD gpu on my linux server wasn't getting
+by Vulkan. Apparently you have to run your python code throught a terminal session in the GUI (pressing Alt-T).
+Running the python script using a non-GUI shell (Ctrl-Alt-1 / SSH / Putty, etc.) doesn't work for some reason.
+
+Installing the latest Open Mesa drivers probably helped as well.
+https://launchpad.net/~oibaf/+archive/ubuntu/graphics-drivers
+
+
+```console
+sudo add-apt-repository ppa:oibaf/graphics-drivers
+sudo apt update
+sudo apt upgrade
+```
+
+**Output from running test_gpu.py**
+
+```console
+From a plain shell
+
+python test_gpu.py
+[2023-01-08 11:17:43] [INFO] Searching for Vulkan compatible GPUs
+[2023-01-08 11:17:43] [INFO] ====================================
+[2023-01-08 11:17:43] [INFO] GPU count: 1
+[2023-01-08 11:17:43] [INFO] ====================================
+[2023-01-08 11:17:43] [INFO] Default GPU: 0
+[2023-01-08 11:17:43] [INFO] ====================================
+[2023-01-08 11:17:43] [INFO] GPU 0: CPU / llvmpipe (LLVM 15.0.5, 256 bits)
+
+```
+
+```console
+From terminal app within Ubuntu GUI
+
+python test_gpu.py
+[2023-01-08 11:20:36] [INFO] Searching for Vulkan compatible GPUs
+[2023-01-08 11:20:36] [INFO] ====================================
+[2023-01-08 11:20:36] [INFO] GPU count: 4
+[2023-01-08 11:20:36] [INFO] ====================================
+[2023-01-08 11:20:36] [INFO] Default GPU: 0
+[2023-01-08 11:20:36] [INFO] ====================================
+[2023-01-08 11:20:36] [INFO] GPU 0: Integrated / AMD Radeon Graphics (RADV RENOIR)
+[2023-01-08 11:20:36] [INFO] GPU 1: CPU / llvmpipe (LLVM 15.0.5, 256 bits)
+[2023-01-08 11:20:36] [INFO] GPU 2: CPU / llvmpipe (LLVM 15.0.5, 256 bits)
+[2023-01-08 11:20:36] [INFO] GPU 3: Integrated / AMD Radeon Graphics (RADV RENOIR)
+
+```
