@@ -251,9 +251,6 @@ def upscale_only(
 
         frame_batch += 1
 
-    ncnn.destroy_gpu_instance()
-    del net
-
     with open("completed.txt", "w") as f:
         f.write("Completed")
 

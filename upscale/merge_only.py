@@ -102,18 +102,14 @@ def merge_only(
                 logging.error(input_file_name + " not found - Exiting")
                 sys.exit(input_file_name + " not found - Exiting")
 
-        if (
-            merge_frames(
-                ffmpeg,
-                ffmpeg_encoder,
-                frame_batch,
-                start_frame,
-                end_frame,
-                frame_rate,
-            )
-            == -1
-        ):
-            sys.exit("PNG merging Failed")
+        merge_frames(
+            ffmpeg,
+            ffmpeg_encoder,
+            frame_batch,
+            start_frame,
+            end_frame,
+            frame_rate,
+        )
 
         frame_batch += 1
 

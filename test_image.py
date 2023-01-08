@@ -33,7 +33,6 @@ def process_image(
             denoise = None
 
     if scale not in [2, 4]:
-        ncnn.destroy_gpu_instance()
         sys.exit("Scale must be 2 or 4")
 
     net = ncnn.Net()
@@ -92,8 +91,6 @@ def process_image(
     upscale_image(input_file, output_file, scale, net, input_name, output_name)
 
     logging.info("Completed")
-
-    ncnn.destroy_gpu_instance()
 
 
 if __name__ == "__main__":

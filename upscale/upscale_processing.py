@@ -202,9 +202,9 @@ def process_model(input_file, output_file, net, input_name, output_name, remove=
 
         # Save image using opencv
         cv2.imwrite(output_file, output)
-    except RuntimeError as error:
+    except Exception as e:
         loggin.error("Model processing failed")
-        logging.error(error)
+        logging.error(e)
         ncnn.destroy_gpu_instance()
         sys.exit("Model processing failed")
 
@@ -274,9 +274,9 @@ def process_tile(
         ex.input(input_name, mat_in)
         ret, mat_out = ex.extract(output_name)
         output_tile = np.array(mat_out)
-    except RuntimeError as error:
+    except Exception as e:
         logging.error("Upscale failed")
-        logging.error(error)
+        logging.error(e)
         ncnn.destroy_gpu_instance()
         sys.exit("Upscale failed")
 
@@ -438,11 +438,10 @@ def merge_frames(
     if result.stderr:
         if os.path.exists(str(frame_batch) + ".mkv"):
             os.remove(str(frame_batch) + ".mkv")
-        logging.error("PNG merging Failed")
+        logging.error("PNG merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
-
-        return -1
+        sys.exit("PNG merging failed")
 
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
@@ -450,8 +449,6 @@ def merge_frames(
     ## delete merged png files
     for frame in range(start_frame, end_frame + 1):
         os.remove(str(frame) + ".png")
-
-    return 0
 
 
 def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
@@ -730,19 +727,14 @@ def process_file(
             output_name,
         )
 
-        if (
-            merge_frames(
-                ffmpeg,
-                ffmpeg_encoder,
-                frame_batch,
-                start_frame,
-                end_frame,
-                frame_rate,
-            )
-            == -1
-        ):
-            ncnn.destroy_gpu_instance()
-            sys.exit("PNG merging Failed")
+        merge_frames(
+            ffmpeg,
+            ffmpeg_encoder,
+            frame_batch,
+            start_frame,
+            end_frame,
+            frame_rate,
+        )
 
         frame_batch += 1
 
@@ -760,5 +752,3 @@ def process_file(
     if not resume_processing:
         logging.info("Cleaning up temp directory")
         shutil.rmtree(temp_dir)
-
-    ncnn.destroy_gpu_instance()

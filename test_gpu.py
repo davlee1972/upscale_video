@@ -73,7 +73,6 @@ def test_gpu(gpu=None):
         total = time.time() - start
         logging.info(str(total) + " seconds to upscale sample.png")
         logging.info("Testing GPU " + str(gpu) + " - Passed")
-        ncnn.destroy_gpu_instance()
 
 
 if __name__ == "__main__":
