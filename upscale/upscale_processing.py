@@ -78,9 +78,7 @@ def get_metadata(ffmpeg, input_file):
             + " vs "
             + str(round(frame_rate, 2))
         )
-        logging.info(
-            "Will attempt to adjust frame rate.."
-        )
+        logging.info("Will attempt to adjust frame rate..")
         info_dict["number_of_frames"] = round(frames_count * frame_rate_check, 0)
         for i in range(1, 10):
             test = frame_rate_check * i
@@ -97,11 +95,11 @@ def get_metadata(ffmpeg, input_file):
                 info_dict["number_of_frames"] = int(
                     info_dict["streams"][0]["nb_read_packets"]
                 )
+                logging.info("Corrected framerate is: " + str(info_dict["frame_rate"]))
                 logging.info(
-                    "Corrected framerate is: " + str(info_dict["frame_rate"])
-                )
-                logging.info(
-                    "1 out of every " + str(test) + " frames will be pruned for duplicates.."
+                    "1 out of every "
+                    + str(test)
+                    + " frames will be pruned for duplicates.."
                 )
                 break
 
@@ -748,9 +746,6 @@ def process_file(
 
         frame_batch += 1
 
-    ncnn.destroy_gpu_instance()
-    del net
-
     ## merge video files into a single video file
     frame_batch -= 1
     merge_mkvs(ffmpeg, frame_batch, output_file, log_dir)
@@ -765,3 +760,5 @@ def process_file(
     if not resume_processing:
         logging.info("Cleaning up temp directory")
         shutil.rmtree(temp_dir)
+
+    ncnn.destroy_gpu_instance()
