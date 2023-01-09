@@ -28,6 +28,8 @@ pip install ncnn_vulkan
 
 pip install wakepy
 
+pip install pillow
+
 git clone https://github.com/davlee1972/upscale_video.git
 
 # Usage

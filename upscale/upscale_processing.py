@@ -13,6 +13,7 @@ from ncnn_vulkan import ncnn
 import numpy as np
 import math
 import json
+from PIL import Image
 from multiprocessing import Pool
 
 
@@ -518,7 +519,15 @@ def merge_frames(
         logging.error("PNG merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
-        sys.exit("PNG merging failed")
+        logging.error("Testing PNG files for corruption..")
+        for frame in range(start_frame, end_frame + 1):
+            try:
+                img = Image.open(str(frame) + ".png")
+                img.verify()
+            except (IOError, SyntaxError) as e:
+                logging.error("Bad file: " + str(i) + ".png")
+                pass
+        sys.exit("PNG merging failed - Try running fix_frames.py on bad frames")
 
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
