@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import sys
 
-from upscale_processing import get_metadata, merge_frames, merge_mkvs
+from upscale_processing import get_metadata, merge_frames, merge_mkvs, calc_batches
 
 
 def merge_only(
@@ -78,8 +78,9 @@ def merge_only(
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
 
-    ## calculate frames per minute
+    ## calculate frames per minute and frame_batches
     frames_per_batch = int(frame_rate * 60) * batch_size
+    frame_batches = calc_batches(frames_count, frames_per_batch)
 
     frame_batch = 1
     end_frame = 0

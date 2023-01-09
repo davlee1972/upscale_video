@@ -45,8 +45,8 @@ if __name__ == "__main__":
         "-b",
         "--batch_size",
         type=int,
-        default=1,
-        help="Number of minutes to upscale per batch. Default is 1.",
+        default=10,
+        help="Number of minutes to upscale per batch. Default is 10.",
     )
     parser.add_argument(
         "-r",

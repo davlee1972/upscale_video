@@ -104,8 +104,8 @@ Upscaled 2x with light denoise using --scale 2 --denoise 3. Denoise added an add
 
 This python code is used to scale my existing 2k bluray collecion to 4k
 
-Troubleshooting Ubuntu. It took me a while to figure out why my AMD gpu on my linux server wasn't getting
-by Vulkan. Apparently you have to run your python code throught a terminal session in the GUI (pressing Alt-T).
+Troubleshooting Ubuntu. It took me a while to figure out why my AMD gpu on my linux server wasn't getting working
+with Vulkan. Apparently you have to run your python code throught a terminal session in the GUI (pressing Alt-T).
 Running the python script using a non-GUI shell (Ctrl-Alt-1 / SSH / Putty, etc.) doesn't work for some reason.
 
 Installing the latest Open Mesa drivers probably helped as well.

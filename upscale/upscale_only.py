@@ -220,36 +220,16 @@ def upscale_only(
     input_name = "input"
     output_name = "output"
 
-    frame_batch = 1
-    end_frame = 0
-
-    while end_frame < frames_count:
-        if frame_batch * frames_per_batch < frames_count:
-            end_frame = frame_batch * frames_per_batch
-        else:
-            end_frame = frames_count
-
-        if os.path.exists("batch." + str(frame_batch) + ".upscaled.txt"):
-            frame_batch += 1
-            continue
-
-        start_frame = 1 + (frame_batch - 1) * frames_per_batch
-
-        upscale_frames(
-            net,
-            input_model_name,
-            frame_batch,
-            start_frame,
-            end_frame,
-            scale,
-            input_name,
-            output_name,
-        )
-
-        with open("batch." + str(frame_batch) + ".upscaled.txt", "w") as f:
-            f.write("Upscaled")
-
-        frame_batch += 1
+    upscale_frames(
+        net,
+        input_model_name,
+        1,
+        1,
+        frames_count,
+        scale,
+        input_name,
+        output_name,
+    )
 
     with open("completed.txt", "w") as f:
         f.write("Completed")

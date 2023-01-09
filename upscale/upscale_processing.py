@@ -160,6 +160,25 @@ def get_crop_detect(ffmpeg, input_file, temp_dir):
     return crop
 
 
+def calc_batches(frames_count, batch_size):
+    end_frame = 0
+    frame_batch = 1
+    frame_batches = {}
+    while end_frame < frames_count:
+        if frame_batch * frames_per_batch < frames_count:
+            end_frame = frame_batch * frames_per_batch
+        else:
+            end_frame = frames_count
+
+        start_frame = 1 + (frame_batch - 1) * frames_per_batch
+
+        frame_batches[frame_batch] = [start_frame, end_frame]
+
+        frame_batch +=1
+
+    return frame_batches
+
+
 def process_denoise(input_file_name, output_file_name, denoise, remove=True):
 
     img = cv2.UMat(cv2.imread(input_file_name))
@@ -370,9 +389,15 @@ def upscale_frames(
             frames_upscaled += 1
             continue
 
+        if not os.path.exists(input_file_name):
+            frames_upscaled += 1
+            continue
+
         upscale_image(
             input_file_name, output_file_name, scale, net, input_name, output_name
         )
+
+        os.remove(str(frame) + "." + input_model_name + ".png")
 
         frames_upscaled += 1
 
@@ -384,10 +409,6 @@ def upscale_frames(
             + "/"
             + str(1 + end_frame - start_frame)
         )
-
-    ## delete upscaled png files
-    for frame in range(start_frame, end_frame + 1):
-        os.remove(str(frame) + "." + input_model_name + ".png")
 
 
 def merge_frames(
@@ -581,10 +602,15 @@ def process_file(
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
 
-    ## calculate frames per minute
+    ## calculate frames per minute and batches
     frames_per_batch = int(frame_rate * 60) * batch_size
+    frame_batches = calc_batches(frames_count, frames_per_batch)
 
     crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
+
+    ## process input file in batches
+    for frame_batch, frame_range in frame_batches.items():
+
 
     cmds = [
         ffmpeg,
