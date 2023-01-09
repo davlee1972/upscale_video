@@ -64,7 +64,7 @@ def merge_only(
     cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
-    if os.path.exists("completed.txt"):
+    if os.path.exists("merged.txt"):
         sys.exit(input_file + "already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
@@ -82,22 +82,13 @@ def merge_only(
     frames_per_batch = int(frame_rate * 60) * batch_size
     frame_batches = calc_batches(frames_count, frames_per_batch)
 
-    frame_batch = 1
-    end_frame = 0
-
-    while end_frame < frames_count:
-        if frame_batch * frames_per_batch < frames_count:
-            end_frame = frame_batch * frames_per_batch
-        else:
-            end_frame = frames_count
+    for frame_batch, frame_range in frame_batches.items():
 
         if os.path.exists(str(frame_batch) + ".mkv"):
             frame_batch += 1
             continue
 
-        start_frame = 1 + (frame_batch - 1) * frames_per_batch
-
-        for frame in range(start_frame, end_frame + 1):
+        for frame in range(frame_range[0], frame_range[1] + 1):
             input_file_name = str(frame) + ".png"
             if not os.path.exists(input_file_name):
                 logging.error(input_file_name + " not found - Exiting")
@@ -107,19 +98,16 @@ def merge_only(
             ffmpeg,
             ffmpeg_encoder,
             frame_batch,
-            start_frame,
-            end_frame,
+            frame_range[0],
+            frame_range[1],
             frame_rate,
         )
 
-        frame_batch += 1
-
     ## merge video files into a single video file
-    frame_batch -= 1
     merge_mkvs(ffmpeg, frame_batch, output_file, log_dir)
 
-    with open("completed.txt", "w") as f:
-        f.write("Completed")
+    with open("merged.txt", "w") as f:
+        f.write("Merged")
 
     os.chdir(cwd_dir)
 

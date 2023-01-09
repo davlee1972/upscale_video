@@ -18,11 +18,10 @@ from upscale_processing import (
     process_model,
     process_denoise,
     upscale_frames,
-    extract_frames,
 )
 
 
-def upscale_only(
+def fix_frames(
     input_file,
     ffmpeg,
     scale,
@@ -32,6 +31,8 @@ def upscale_only(
     denoise,
     log_level,
     log_dir,
+    start_frame,
+    end_frame,
 ):
     """
     Upscale video file 2x or 4x
@@ -45,6 +46,8 @@ def upscale_only(
     :param denoise:
     :param log_level:
     :param log_dir:
+    :param start_frame,
+    :param end_frame
     """
 
     if scale not in [2, 4]:
@@ -88,9 +91,6 @@ def upscale_only(
     cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
-    if os.path.exists("upscaled.txt"):
-        sys.exit(input_file + "already processed - Exiting")
-
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake
 
@@ -99,23 +99,61 @@ def upscale_only(
     ## get metadata
     info_dict = get_metadata(ffmpeg, input_file)
 
-    frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
-
-    ## calculate frames per minute
-    frames_per_batch = int(frame_rate * 60)
 
     crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
 
-    extract_frames(
-        ffmpeg,
-        input_file,
-        crop_detect,
-        info_dict,
-        frames_count,
-        frame_batches,
-        extract_only,
-    )
+    run_extract = False
+
+    for frame in range(start_frame, end_frame + 1):
+        if not os.path.exists(str(frame) + ".extract.png"):
+            run_extract = True
+            break
+
+    if run_extract:
+        cmds = [
+            ffmpeg,
+            "-hide_banner",
+            "-hwaccel",
+            "auto",
+            "-i",
+            input_file,
+            "-vframes",
+            str(end_frame),
+            "-loglevel",
+            "error",
+            "-pix_fmt",
+            "rgb24",
+        ]
+
+        if crop_detect:
+            logging.info("Crop Detected: " + crop_detect)
+            cmds.append("-vf")
+            if "prune" in info_dict:
+                cmds.append(crop_detect + "," + info_dict["prune"])
+            else:
+                cmds.append(crop_detect)
+        elif "prune" in info_dict:
+            cmds.append("-vf")
+            cmds.append(info_dict["prune"])
+
+        cmds.append("%d.extract.png")
+
+        ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
+        logging.info("Starting Frames Extraction..")
+
+        result = subprocess.run(cmds)
+
+        if result.stderr:
+            logging.error(str(result.stderr))
+            logging.error(str(result.args))
+            sys.exit("Error with extracting frames.")
+
+        ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
+        logging.info("Removing extract frames extracted..")
+
+        for frame in range(1, start_frame + 1):
+            os.remove(str(frame) + ".extract.png")
 
     net = ncnn.Net()
 
@@ -142,13 +180,13 @@ def upscale_only(
         input_name = "input"
         output_name = "output"
 
-        for frame in range(frames_count):
-            input_file_name = str(frame + 1) + "." + input_model_name + ".png"
+        for frame in range(start_frame, end_frame + 1):
+            input_file_name = str(frame) + "." + input_model_name + ".png"
 
             if os.path.exists(input_file_name):
                 process_model(
                     input_file_name,
-                    str(frame + 1) + ".anime.png",
+                    str(frame) + ".anime.png",
                     net,
                     input_name,
                     output_name,
@@ -160,15 +198,15 @@ def upscale_only(
         logging.info("Starting denoise touchup...")
         pool = Pool()
 
-        for frame in range(frames_count):
-            input_file_name = str(frame + 1) + "." + input_model_name + ".png"
+        for frame in range(start_frame, end_frame + 1):
+            input_file_name = str(frame) + "." + input_model_name + ".png"
 
             if os.path.exists(input_file_name):
                 pool.apply_async(
                     process_denoise,
                     args=(
-                        str(frame + 1) + "." + input_model_name + ".png",
-                        str(frame + 1) + ".denoise.png",
+                        str(frame) + "." + input_model_name + ".png",
+                        str(frame) + ".denoise.png",
                         denoise,
                     ),
                     callback=logging.info,
@@ -187,28 +225,31 @@ def upscale_only(
     input_name = "input"
     output_name = "output"
 
+    for frame in range(start_frame, end_frame + 1):
+        try:
+            os.remove(str(i) + ".png")
+        except:
+            pass
+
     upscale_frames(
         net,
         input_model_name,
         1,
-        1,
-        frames_count,
+        start,
+        end,
         scale,
         input_name,
         output_name,
     )
 
-    with open("upscaled.txt", "w") as f:
-        f.write("Upscaled")
-
     os.chdir(cwd_dir)
 
-    logging.info("Upscale only finished for " + input_file)
+    logging.info("Fix frames finished")
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Upscale images only")
+    parser = argparse.ArgumentParser(description="Fix frames")
 
     parser.add_argument("-i", "--input_file", required=True, help="Input file.")
     parser.add_argument("-f", "--ffmpeg", required=True, help="Location of ffmpeg.")
@@ -231,26 +272,25 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
-        "-x",
-        "--extract_only",
-        action="store_true",
-        help="Exits after frame extraction. Used in conjunction with --resume_processing. You may want to run test_image.py on some extracted png files to sample what denoise level to apply if needed. Rerun with -r / --resume_processing to restart.",
-    )
-    parser.add_argument(
         "-l", "--log_level", type=int, help="Logging level. logging.INFO is default"
     )
     parser.add_argument("-d", "--log_dir", help="Logging directory. logging directory")
 
+    parser.add_argument("--start", type=int, required=True, help="Starting frame")
+
+    parser.add_argument("--end", type=int, required=True, help="Ending frame")
+
     args = parser.parse_args()
 
-    upscale_only(
+    fix_frames(
         args.input_file,
         args.ffmpeg,
         args.scale,
         args.temp_dir,
-        args.extract_only,
         args.anime,
         args.denoise,
         args.log_level,
         args.log_dir,
+        args.start,
+        args.end,
     )

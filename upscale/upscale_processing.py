@@ -174,9 +174,65 @@ def calc_batches(frames_count, batch_size):
 
         frame_batches[frame_batch] = [start_frame, end_frame]
 
-        frame_batch +=1
+        frame_batch += 1
 
     return frame_batches
+
+
+def extract_frames(
+    ffmpeg,
+    input_file,
+    crop_detect,
+    info_dict,
+    frames_count,
+    frame_batches,
+    extract_only,
+):
+
+    cmds = [
+        ffmpeg,
+        "-hide_banner",
+        "-hwaccel",
+        "auto",
+        "-i",
+        input_file,
+        "-loglevel",
+        "error",
+        "-pix_fmt",
+        "rgb24",
+    ]
+
+    if crop_detect:
+        logging.info("Crop Detected: " + crop_detect)
+        cmds.append("-vf")
+        if "prune" in info_dict:
+            cmds.append(crop_detect + "," + info_dict["prune"])
+        else:
+            cmds.append(crop_detect)
+    elif "prune" in info_dict:
+        cmds.append("-vf")
+        cmds.append(info_dict["prune"])
+
+    cmds.append("%d.extract.png")
+
+    ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
+    logging.info("Starting Frames Extraction..")
+
+    if extract_only or (
+        not os.path.exists(str(frames_count) + ".extract.png")
+        and not os.path.exists(str(frames_count) + ".anime.png")
+        and not os.path.exists(str(frames_count) + ".denoise.png")
+        and not os.path.exists(str(max(frame_batches.keys())) + ".mkv")
+    ):
+        result = subprocess.run(cmds)
+
+        if result.stderr:
+            logging.error(str(result.stderr))
+            logging.error(str(result.args))
+            sys.exit("Error with extracting frames.")
+
+    if extract_only:
+        sys.exit("Extract Only - Frames Extraction Completed")
 
 
 def process_denoise(input_file_name, output_file_name, denoise, remove=True):
@@ -608,54 +664,15 @@ def process_file(
 
     crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
 
-    ## process input file in batches
-    for frame_batch, frame_range in frame_batches.items():
-
-
-    cmds = [
+    extract_frames(
         ffmpeg,
-        "-hide_banner",
-        "-hwaccel",
-        "auto",
-        "-i",
         input_file,
-        "-loglevel",
-        "error",
-        "-pix_fmt",
-        "rgb24",
-    ]
-
-    if crop_detect:
-        logging.info("Crop Detected: " + crop_detect)
-        cmds.append("-vf")
-        if "prune" in info_dict:
-            cmds.append(crop_detect + "," + info_dict["prune"])
-        else:
-            cmds.append(crop_detect)
-    elif "prune" in info_dict:
-        cmds.append("-vf")
-        cmds.append(info_dict["prune"])
-
-    cmds.append("%d.extract.png")
-
-    ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
-    logging.info("Starting Frames Extraction..")
-
-    if (
-        not os.path.exists(str(frames_count) + ".extract.png")
-        and not os.path.exists(str(frames_count) + ".anime.png")
-        and not os.path.exists(str(frames_count) + ".denoise.png")
-    ):
-        result = subprocess.run(cmds)
-
-        if result.stderr:
-            logging.error(str(result.stderr))
-
-            logging.error(str(result.args))
-            sys.exit("Error with extracting frames.")
-
-    if extract_only:
-        sys.exit("Extract Only - Frames Extraction Completed")
+        crop_detect,
+        info_dict,
+        frames_count,
+        frame_batches,
+        extract_only,
+    )
 
     net = ncnn.Net()
 
@@ -727,27 +744,15 @@ def process_file(
     input_name = "input"
     output_name = "output"
 
-    frame_batch = 1
-    end_frame = 0
-
-    while end_frame < frames_count:
-        if frame_batch * frames_per_batch < frames_count:
-            end_frame = frame_batch * frames_per_batch
-        else:
-            end_frame = frames_count
-
-        if os.path.exists(str(frame_batch) + ".mkv"):
-            frame_batch += 1
-            continue
-
-        start_frame = 1 + (frame_batch - 1) * frames_per_batch
+    ## process input file in batches
+    for frame_batch, frame_range in frame_batches.items():
 
         upscale_frames(
             net,
             input_model_name,
             frame_batch,
-            start_frame,
-            end_frame,
+            frame_range[0],
+            frame_range[1],
             scale,
             input_name,
             output_name,
@@ -757,15 +762,12 @@ def process_file(
             ffmpeg,
             ffmpeg_encoder,
             frame_batch,
-            start_frame,
-            end_frame,
+            frame_range[0],
+            frame_range[1],
             frame_rate,
         )
 
-        frame_batch += 1
-
     ## merge video files into a single video file
-    frame_batch -= 1
     merge_mkvs(ffmpeg, frame_batch, output_file, log_dir)
 
     with open("completed.txt", "w") as f:
