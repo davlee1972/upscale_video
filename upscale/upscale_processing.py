@@ -166,13 +166,13 @@ def calc_batches(frames_count, batch_size):
     frame_batch = 1
     frame_batches = {}
     while end_frame < frames_count:
-        if frame_batch * frames_per_batch < frames_count:
-            end_frame = frame_batch * frames_per_batch
+        if frame_batch * batch_size < frames_count:
+            end_frame = frame_batch * batch_size
         else:
             end_frame = frames_count
 
-        start_frame = 1 + (frame_batch - 1) * frames_per_batch
-
+        start_frame = 1 + (frame_batch - 1) * batch_size
+        
         frame_batches[frame_batch] = [start_frame, end_frame]
 
         frame_batch += 1
