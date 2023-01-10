@@ -18,7 +18,11 @@ from multiprocessing import Pool
 
 
 def get_metadata(ffmpeg, input_file):
-    logging.info("Getting metadata from " + str(input_file))
+    if input_file:
+        logging.info("Getting metadata from " + str(input_file))
+    else:
+        logging.info("Getting metadata")
+
     if os.path.exists("metadata.json"):
         info_dict = json.loads(open("metadata.json").read())
         frames_count = info_dict["number_of_frames"]
@@ -52,7 +56,7 @@ def get_metadata(ffmpeg, input_file):
             logging.error("Error getting metadata.")
             logging.error(str(result.stderr))
             logging.error(str(result.args))
-            sys.exit("Error getting metadata.")
+            sys.exit("Error - Exiting")
 
         info_dict = json.loads(result.stdout)
 
@@ -145,7 +149,7 @@ def get_crop_detect(ffmpeg, input_file, temp_dir):
             logging.error("Error with getting crop detect.")
             logging.error(str(result.stderr))
             logging.error(str(result.args))
-            sys.exit("Error with getting crop detect.")
+            sys.exit("Error - Exiting")
 
         crop_list = json.loads(result.stdout)["packets"]
         crop_list = [
@@ -172,7 +176,7 @@ def calc_batches(frames_count, batch_size):
             end_frame = frames_count
 
         start_frame = 1 + (frame_batch - 1) * batch_size
-        
+
         frame_batches[frame_batch] = [start_frame, end_frame]
 
         frame_batch += 1
@@ -228,12 +232,14 @@ def extract_frames(
         result = subprocess.run(cmds)
 
         if result.stderr:
+            logging.error("Error with extracting frames.")
             logging.error(str(result.stderr))
             logging.error(str(result.args))
-            sys.exit("Error with extracting frames.")
+            sys.exit("Error - Exiting")
 
     if extract_only:
-        sys.exit("Extract Only - Frames Extraction Completed")
+        logging.inf("Extract Only - Frames Extraction Completed")
+        sys.exit()
 
 
 def process_denoise(input_file_name, output_file_name, denoise, remove=True):
@@ -282,7 +288,7 @@ def process_model(input_file, output_file, net, input_name, output_name, remove=
         loggin.error("Model processing failed")
         logging.error(e)
         ncnn.destroy_gpu_instance()
-        sys.exit("Model processing failed")
+        sys.exit("Error - Exiting")
 
     if remove:
         os.remove(input_file)
@@ -354,7 +360,7 @@ def process_tile(
         logging.error("Upscale failed")
         logging.error(e)
         ncnn.destroy_gpu_instance()
-        sys.exit("Upscale failed")
+        sys.exit("Error - Exiting")
 
     # Transpose the output from `c, h, w` to `h, w, c` and put it back in 0-255 range
     output_tile = output_tile.transpose(1, 2, 0) * 255
@@ -376,7 +382,7 @@ def process_tile(
 
 
 def upscale_image(
-    input_file_name, output_file_name, scale, net, input_name, output_name
+    input_file_name, output_file_name, scale, net, input_name, output_name, remove=True
 ):
 
     # Load image using opencv
@@ -415,6 +421,9 @@ def upscale_image(
     if output_file_name:
         cv2.imwrite(output_file_name, output)
 
+    if remove:
+        os.remove(input_file_name)
+
 
 def upscale_frames(
     net,
@@ -439,8 +448,8 @@ def upscale_frames(
     ## upscale frames
     for frame in range(start_frame, end_frame + 1):
 
-        output_file_name = str(frame) + ".png"
         input_file_name = str(frame) + "." + input_model_name + ".png"
+        output_file_name = str(frame) + ".png"
 
         if os.path.exists(output_file_name):
             frames_upscaled += 1
@@ -453,8 +462,6 @@ def upscale_frames(
         upscale_image(
             input_file_name, output_file_name, scale, net, input_name, output_name
         )
-
-        os.remove(str(frame) + "." + input_model_name + ".png")
 
         frames_upscaled += 1
 
@@ -520,14 +527,20 @@ def merge_frames(
         logging.error(str(result.stderr))
         logging.error(str(result.args))
         logging.error("Testing PNG files for corruption..")
+        bad_fames = []
         for frame in range(start_frame, end_frame + 1):
             try:
                 img = Image.open(str(frame) + ".png")
                 img.verify()
             except (IOError, SyntaxError) as e:
-                logging.error("Bad file: " + str(i) + ".png")
+                logging.error("Bad file: " + str(frame) + ".png")
+                bad_frames.append(frame)
                 pass
-        sys.exit("PNG merging failed - Try running fix_frames.py on bad frames")
+        logging.error(
+            "PNG merging failed - Try running fix_frames.py on bad frames using -b "
+            + str(bad_frames)[1:-1].replace(" ", "")
+        )
+        sys.exit("Error - Exiting")
 
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
@@ -567,7 +580,7 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
         logging.error("MKV merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
-        sys.exit("MKV merging failed")
+        sys.exit("Error - Exiting")
 
 
 def process_file(
@@ -605,6 +618,9 @@ def process_file(
 
     if scale not in [2, 4]:
         sys.exit("Scale must be 2 or 4 - Exiting")
+
+    if not os.path.exists(input_file):
+        sys.exit(input_file + " not found")
 
     if not log_level:
         log_level = logging.INFO

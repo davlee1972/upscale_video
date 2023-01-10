@@ -6,7 +6,6 @@ Author: David Lee
 import argparse
 import logging
 import os
-import subprocess
 import tempfile
 import sys
 from ncnn_vulkan import ncnn
@@ -17,8 +16,8 @@ from upscale_processing import (
     get_crop_detect,
     process_model,
     process_denoise,
-    upscale_frames,
     extract_frames,
+    upscale_image,
 )
 
 
@@ -34,7 +33,7 @@ def upscale_only(
     log_dir,
 ):
     """
-    Upscale video file 2x or 4x
+    Upscales video file 2x or 4x only
 
     :param input_file:
     :param ffmpeg:
@@ -49,6 +48,9 @@ def upscale_only(
 
     if scale not in [2, 4]:
         sys.exit("Scale must be 2 or 4 - Exiting")
+
+    if not os.path.exists(input_file):
+        sys.exit(input_file + " not found")
 
     if not log_level:
         log_level = logging.INFO
@@ -187,16 +189,16 @@ def upscale_only(
     input_name = "input"
     output_name = "output"
 
-    upscale_frames(
-        net,
-        input_model_name,
-        1,
-        1,
-        frames_count,
-        scale,
-        input_name,
-        output_name,
-    )
+    for frame in range(frames_count):
+
+        input_file_name = str(frame + 1) + "." + input_model_name + ".png"
+        output_file_name = str(frame + 1) + ".png"
+
+        upscale_image(
+            input_file_name, output_file_name, scale, net, input_name, output_name
+        )
+
+        logging.info("Upscaled frame " + str(frame + 1) + "/" + str(frames_count))
 
     with open("upscaled.txt", "w") as f:
         f.write("Upscaled")
