@@ -75,38 +75,17 @@ def get_metadata(ffmpeg, input_file):
     logging.info("Duration: " + str(duration))
     logging.info("Frames per second: " + str(frame_rate))
 
-    frame_rate_check = round(duration * frame_rate / frames_count, 2)
-    if frame_rate_check != 1:
+    frames_check = round(duration * frame_rate, 0)
+
+    if frames_check != frames_count:
         logging.info(
-            "Frame rates mismatch detected: "
-            + str(round(frames_count / duration, 2))
+            "Number of frames mismatch: "
+            + str(frames_count)
             + " vs "
-            + str(round(frame_rate, 2))
+            + str(frames_check)
         )
-        logging.info("Will attempt to adjust frame rate..")
-        info_dict["number_of_frames"] = round(frames_count * frame_rate_check, 0)
-        for i in range(1, 10):
-            test = frame_rate_check * i
-            if round(test, 0) == round(test, 2) and round(test - i, 2) == 1:
-                test = int(test)
-                info_dict["prune"] = (
-                    "fps="
-                    + str(info_dict["frame_rate"])
-                    + ",fieldmatch=order=tff:mode=pc,decimate=cycle="
-                    + str(test)
-                )
-                ##info_dict["prune"] = "fps=" + str(info_dict["frame_rate"])
-                info_dict["frame_rate"] = round(frames_count / duration, 4)
-                info_dict["number_of_frames"] = int(
-                    info_dict["streams"][0]["nb_read_packets"]
-                )
-                logging.info("Corrected framerate is: " + str(info_dict["frame_rate"]))
-                logging.info(
-                    "1 out of every "
-                    + str(test)
-                    + " frames will be pruned for duplicates.."
-                )
-                break
+        info_dict["number_of_frames"] = frames_check
+        logging.info("Corrected number of framerate is: " + str(frames_check))
 
     return info_dict
 
@@ -210,13 +189,7 @@ def extract_frames(
     if crop_detect:
         logging.info("Crop Detected: " + crop_detect)
         cmds.append("-vf")
-        if "prune" in info_dict:
-            cmds.append(crop_detect + "," + info_dict["prune"])
-        else:
-            cmds.append(crop_detect)
-    elif "prune" in info_dict:
-        cmds.append("-vf")
-        cmds.append(info_dict["prune"])
+        cmds.append(crop_detect)
 
     cmds.append("%d.extract.png")
 
@@ -529,7 +502,7 @@ def merge_frames(
         logging.error(str(result.stderr))
         logging.error(str(result.args))
         logging.error("Testing PNG files for corruption..")
-        bad_fames = []
+        bad_frames = []
         for frame in range(start_frame, end_frame + 1):
             try:
                 img = Image.open(str(frame) + ".png")
