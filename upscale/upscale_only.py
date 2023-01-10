@@ -119,7 +119,7 @@ def upscale_only(
         crop_detect,
         info_dict,
         frames_count,
-        frame_batches,
+        {0: None},
         extract_only,
     )
 
