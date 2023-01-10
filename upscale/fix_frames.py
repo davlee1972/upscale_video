@@ -17,41 +17,53 @@ from upscale_processing import (
     get_crop_detect,
     process_model,
     process_denoise,
-    upscale_frames,
+    upscale_image,
 )
+
+
+def get_bad_frames(x):
+    result = []
+    for part in x.split(","):
+        if "-" in part:
+            a, b = part.split("-")
+            a, b = int(a), int(b)
+            result.extend(range(a, b + 1))
+        else:
+            a = int(part)
+            result.append(a)
+    return result
 
 
 def fix_frames(
     input_file,
+    bad_frames,
     ffmpeg,
     scale,
     temp_dir,
-    extract_only,
     anime,
     denoise,
     log_level,
     log_dir,
-    start_frame,
-    end_frame,
 ):
     """
     Upscale video file 2x or 4x
 
     :param input_file:
+    :param bad_frames:
     :param ffmpeg:
     :param scale:
     :param temp_dir:
-    :param extract_only:
     :param anime:
     :param denoise:
     :param log_level:
     :param log_dir:
-    :param start_frame,
-    :param end_frame
     """
 
     if scale not in [2, 4]:
         sys.exit("Scale must be 2 or 4 - Exiting")
+
+    if not os.path.exists(input_file):
+        sys.exit(input_file + " not found")
 
     if not log_level:
         log_level = logging.INFO
@@ -103,14 +115,15 @@ def fix_frames(
 
     crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
 
-    run_extract = False
+    bad_frames = get_bad_frames(bad_frames)
 
-    for frame in range(start_frame, end_frame + 1):
-        if not os.path.exists(str(frame) + ".extract.png"):
-            run_extract = True
-            break
+    max_frame = 0
 
-    if run_extract:
+    for frame in bad_frames:
+        if not os.path.exists(str(frame) + ".extract.png") and frame > max_frame:
+            max_frame = frame
+
+    if max_frame:
         cmds = [
             ffmpeg,
             "-hide_banner",
@@ -119,7 +132,7 @@ def fix_frames(
             "-i",
             input_file,
             "-vframes",
-            str(end_frame),
+            str(max_frame),
             "-loglevel",
             "error",
             "-pix_fmt",
@@ -145,15 +158,17 @@ def fix_frames(
         result = subprocess.run(cmds)
 
         if result.stderr:
+            logging.error("Error with extracting frames.")
             logging.error(str(result.stderr))
             logging.error(str(result.args))
-            sys.exit("Error with extracting frames.")
+            sys.exit("Error - Exiting")
 
         ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
-        logging.info("Removing extract frames extracted..")
+        logging.info("Removing extra extracted frames.")
 
-        for frame in range(1, start_frame + 1):
-            os.remove(str(frame) + ".extract.png")
+        for frame in range(max_frame):
+            if frame not in bad_frames:
+                os.remove(str(frame) + ".extract.png")
 
     net = ncnn.Net()
 
@@ -180,7 +195,7 @@ def fix_frames(
         input_name = "input"
         output_name = "output"
 
-        for frame in range(start_frame, end_frame + 1):
+        for frame in bad_frames:
             input_file_name = str(frame) + "." + input_model_name + ".png"
 
             if os.path.exists(input_file_name):
@@ -198,7 +213,7 @@ def fix_frames(
         logging.info("Starting denoise touchup...")
         pool = Pool()
 
-        for frame in range(start_frame, end_frame + 1):
+        for frame in bad_frames:
             input_file_name = str(frame) + "." + input_model_name + ".png"
 
             if os.path.exists(input_file_name):
@@ -225,22 +240,16 @@ def fix_frames(
     input_name = "input"
     output_name = "output"
 
-    for frame in range(start_frame, end_frame + 1):
-        try:
-            os.remove(str(i) + ".png")
-        except:
-            pass
+    for frame in bad_frames:
 
-    upscale_frames(
-        net,
-        input_model_name,
-        1,
-        start,
-        end,
-        scale,
-        input_name,
-        output_name,
-    )
+        input_file_name = str(frame) + "." + input_model_name + ".png"
+        output_file_name = str(frame) + ".png"
+
+        upscale_image(
+            input_file_name, output_file_name, scale, net, input_name, output_name
+        )
+
+        logging.info("Upscaled frame " + str(frame))
 
     os.chdir(cwd_dir)
 
@@ -252,6 +261,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fix frames")
 
     parser.add_argument("-i", "--input_file", required=True, help="Input file.")
+    parser.add_argument(
+        "-b",
+        "--bad_frames",
+        required=True,
+        help="List of bad frames in format like 1,3,5-7,10-12,15",
+    )
     parser.add_argument("-f", "--ffmpeg", required=True, help="Location of ffmpeg.")
     parser.add_argument(
         "-a",
@@ -276,14 +291,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("-d", "--log_dir", help="Logging directory. logging directory")
 
-    parser.add_argument("--start", type=int, required=True, help="Starting frame")
-
-    parser.add_argument("--end", type=int, required=True, help="Ending frame")
-
     args = parser.parse_args()
 
     fix_frames(
         args.input_file,
+        args.bad_frames,
         args.ffmpeg,
         args.scale,
         args.temp_dir,
@@ -291,6 +303,4 @@ if __name__ == "__main__":
         args.denoise,
         args.log_level,
         args.log_dir,
-        args.start,
-        args.end,
     )

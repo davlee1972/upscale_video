@@ -6,7 +6,6 @@ Author: David Lee
 import argparse
 import logging
 import os
-import subprocess
 import tempfile
 import sys
 
@@ -65,7 +64,7 @@ def merge_only(
     os.chdir(temp_dir)
 
     if os.path.exists("merged.txt"):
-        sys.exit(input_file + "already processed - Exiting")
+        sys.exit(output_file + "already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake
@@ -92,7 +91,7 @@ def merge_only(
             input_file_name = str(frame) + ".png"
             if not os.path.exists(input_file_name):
                 logging.error(input_file_name + " not found - Exiting")
-                sys.exit(input_file_name + " not found - Exiting")
+                sys.exit()
 
         merge_frames(
             ffmpeg,

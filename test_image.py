@@ -88,7 +88,12 @@ def process_image(
     input_name = "input"
     output_name = "output"
 
-    upscale_image(input_file, output_file, scale, net, input_name, output_name)
+    for frame in bad_frames:
+        input_file_name = str(frame) + "." + input_model_name + ".png"
+        output_file_name = str(frame) + ".png"
+        upscale_image(
+            input_file, output_file, scale, net, input_name, output_name, remove=False
+        )
 
     logging.info("Completed")
 
