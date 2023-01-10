@@ -203,7 +203,6 @@ def extract_frames(
         and not os.path.exists(str(max(frame_batches.keys())) + ".mkv")
     ):
 
-        print(cmds)
         result = subprocess.run(cmds)
 
         if result.stderr:
@@ -673,7 +672,6 @@ def process_file(
         frame_batches,
         extract_only,
     )
-    sys.exit()
 
     net = ncnn.Net()
 
