@@ -102,10 +102,10 @@ Upscaled 2x using --scale 2. Took 40 hours to process 200,000+ frames.
 ![alt text](https://i.imgur.com/GOFMK47.png)
 Upscaled 2x with light denoise using --scale 2 --denoise 3. Denoise added an additional 3 hours of processing.
 
-![alt text](https://i.imgur.com/xG9kwMJ)
+![alt text](https://i.imgur.com/xG9kwMJ.png)
 Original 1920 x 800 extracted image from 2 Fast 2 Furious Blu-ray
 
-![alt text](https://i.imgur.com/dIWhovG)
+![alt text](https://i.imgur.com/dIWhovG.png)
 Upscaled 2x with light denoise using --scale 2 --denoise 2.
 
 # Notes
