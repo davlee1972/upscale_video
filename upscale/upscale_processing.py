@@ -202,7 +202,6 @@ def extract_frames(
         and not os.path.exists(str(frames_count) + ".denoise.png")
         and not os.path.exists(str(max(frame_batches.keys())) + ".mkv")
     ):
-
         result = subprocess.run(cmds)
 
         if result.stderr:
