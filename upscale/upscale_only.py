@@ -26,6 +26,7 @@ def upscale_only(
     ffmpeg,
     scale,
     temp_dir,
+    upscale_dir,
     extract_only,
     anime,
     denoise,
@@ -51,6 +52,9 @@ def upscale_only(
 
     if not os.path.exists(input_file):
         sys.exit(input_file + " not found")
+
+    if upscale_dir and not os.path.exists(upscale_dir):
+        sys.exit(upscale_dir + " is not not valid")
 
     if not log_level:
         log_level = logging.INFO
@@ -115,7 +119,7 @@ def upscale_only(
         crop_detect,
         info_dict,
         frames_count,
-        frame_batches,
+        {1: [1, frames_count]},
         extract_only,
     )
 
@@ -194,6 +198,9 @@ def upscale_only(
         input_file_name = str(frame + 1) + "." + input_model_name + ".png"
         output_file_name = str(frame + 1) + ".png"
 
+        if upscale_dir:
+            output_file_name = os.path.join(upscale_dir, output_file_name)
+
         upscale_image(
             input_file_name, output_file_name, scale, net, input_name, output_name
         )
@@ -233,6 +240,9 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
+        "-u", "--upscale_dir", help="Upscale directory. Default is same as temp_dir."
+    )
+    parser.add_argument(
         "-x",
         "--extract_only",
         action="store_true",
@@ -250,6 +260,7 @@ if __name__ == "__main__":
         args.ffmpeg,
         args.scale,
         args.temp_dir,
+        args.upscale_dir,
         args.extract_only,
         args.anime,
         args.denoise,

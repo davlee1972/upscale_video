@@ -168,7 +168,7 @@ def fix_frames(
 
         for frame in range(max_frame):
             if frame not in bad_frames:
-                os.remove(str(frame) + ".extract.png")
+                os.remove(str(frame + 1) + ".extract.png")
 
     net = ncnn.Net()
 
