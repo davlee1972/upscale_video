@@ -155,6 +155,7 @@ def fix_frames(
         ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
         logging.info("Starting Frames Extraction..")
 
+        logging.info(cmds)
         result = subprocess.run(cmds)
 
         if result.stderr:
