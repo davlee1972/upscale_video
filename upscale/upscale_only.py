@@ -198,6 +198,9 @@ def upscale_only(
         input_file_name = str(frame + 1) + "." + input_model_name + ".png"
         output_file_name = str(frame + 1) + ".png"
 
+        if not os.path.exists(input_file_name):
+            continue
+
         if upscale_dir:
             output_file_name = os.path.join(upscale_dir, output_file_name)
 

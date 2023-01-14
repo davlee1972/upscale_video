@@ -69,7 +69,7 @@ def test_gpu(gpu=None):
         output_name = "output"
 
         start = time.time()
-        upscale_image(input_file, None, scale, net, input_name, output_name)
+        upscale_image(input_file, None, scale, net, input_name, output_name, remove=False)
         total = time.time() - start
         logging.info(str(total) + " seconds to upscale sample.png")
         logging.info("Testing GPU " + str(gpu) + " - Passed")

@@ -29,8 +29,7 @@ def get_metadata(ffmpeg, input_file):
         duration = info_dict["duration"]
         frame_rate = info_dict["frame_rate"]
     else:
-        result = subprocess.run(
-            [
+        cmds = [
                 ffmpeg[:-6] + "ffprobe",
                 "-hide_banner",
                 "-v",
@@ -47,10 +46,11 @@ def get_metadata(ffmpeg, input_file):
                 "error",
                 "-i",
                 input_file,
-            ],
-            capture_output=True,
-            text=True,
-        )
+            ]
+
+        logging.info(cmds)
+
+        result = subprocess.run(cmds, capture_output=True, text=True)
 
         if result.stderr:
             logging.error("Error getting metadata.")
@@ -101,8 +101,7 @@ def get_crop_detect(ffmpeg, input_file, temp_dir):
         path, file_name = os.path.split(input_file)
         os.chdir(path)
 
-        result = subprocess.run(
-            [
+        cmds = [
                 ffmpeg[:-6] + "ffprobe",
                 "-hide_banner",
                 "-v",
@@ -117,10 +116,11 @@ def get_crop_detect(ffmpeg, input_file, temp_dir):
                 "json",
                 "-loglevel",
                 "error",
-            ],
-            capture_output=True,
-            text=True,
-        )
+            ]
+
+        logging.info(cmds)
+
+        result = subprocess.run(cmds, capture_output=True, text=True)
 
         os.chdir(temp_dir)
 
@@ -202,6 +202,8 @@ def extract_frames(
         and not os.path.exists(str(frames_count) + ".denoise.png")
         and not os.path.exists(str(max(frame_batches.keys())) + ".mkv")
     ):
+
+        logging.info(cmds)
         result = subprocess.run(cmds)
 
         if result.stderr:
@@ -491,6 +493,7 @@ def merge_frames(
     )
 
     ## run ffmpeg to merge frames
+    logging.info(cmds)
     result = subprocess.run(cmds, capture_output=True, text=True)
 
     if result.stderr:
@@ -518,9 +521,15 @@ def merge_frames(
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
 
+
     ## delete merged png files
-    for frame in range(start_frame, end_frame + 1):
-        os.remove(str(frame) + ".png")
+    if os.path.exists(str(frame_batch) + ".mkv"):
+        for frame in range(start_frame, end_frame + 1):
+            os.remove(str(frame) + ".png")
+    else:
+        logging.error("Something went wrong with PNG merging..")
+        logging.error(str(frame_batch) + ".mkv not found..")
+        sys.exit("Error - Exiting")
 
 
 def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
@@ -529,8 +538,7 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
         for i in range(frame_batches):
             f.write("file " + str(i + 1) + ".mkv\n")
 
-    result = subprocess.run(
-        [
+    cmds = [
             ffmpeg,
             "-hide_banner",
             "-f",
@@ -544,15 +552,26 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
             "-c",
             "copy",
             output_file,
-        ],
-        capture_output=True,
-        text=True,
-    )
+        ]
+
+    logging.info(cmds)
+    result = subprocess.run(cmds, capture_output=True, text=True)
 
     if result.stderr:
+        if os.path.exists(output_file):
+            os.remove(output_file)
         logging.error("MKV merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
+        sys.exit("Error - Exiting")
+
+    ## delete merged mkv files
+    if os.path.exists(output_file):
+        for i in range(frame_batches):
+            os.remove(str(frame + 1) + ".mkv")
+    else:
+        logging.error("Something went wrong with MKV merging..")
+        logging.error(output_file + " not found..")
         sys.exit("Error - Exiting")
 
 
