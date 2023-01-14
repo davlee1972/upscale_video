@@ -112,49 +112,22 @@ Upscaled 2x with light denoise using --scale 2 --denoise 2.
 
 This python code is used to scale my existing 2k bluray collecion to 4k
 
-Troubleshooting Ubuntu. It took me a while to figure out why my AMD gpu on my linux server wasn't getting working
-with Vulkan. Apparently you have to run your python code throught a terminal session in the GUI (pressing Alt-T).
-Running the python script using a non-GUI shell (Ctrl-Alt-1 / SSH / Putty, etc.) doesn't work for some reason.
+Troubleshooting Ubuntu. It took me a while to figure out why my AMD gpu on my linux server wasn't working
+with Vulkan. Apparently you have to be a member of the "render" group while running in a shell session.
 
-Installing the latest Open Mesa drivers probably helped as well.
-https://launchpad.net/~oibaf/+archive/ubuntu/graphics-drivers
-
+In order to access GPU capabilities, a user needs to have the correct permissions on system. The following
+will list the group assigned ownership of the render nodes, and list the groups the active user is a member of:
 
 ```console
-sudo add-apt-repository ppa:oibaf/graphics-drivers
-sudo apt update
-sudo apt upgrade
+stat -c "%G" /dev/dri/render*
+groups ${USER}
 ```
 
-**Output from running test_gpu.py**
+If a group is listed for the render node which isn’t listed for the user, you will need to add
+the user to the group using gpasswd. In the following, the active user will be added to the
+‘render’ group and a new shell spawned with that group active:
 
 ```console
-From a plain shell
-
-python test_gpu.py
-[2023-01-08 11:17:43] [INFO] Searching for Vulkan compatible GPUs
-[2023-01-08 11:17:43] [INFO] ====================================
-[2023-01-08 11:17:43] [INFO] GPU count: 1
-[2023-01-08 11:17:43] [INFO] ====================================
-[2023-01-08 11:17:43] [INFO] Default GPU: 0
-[2023-01-08 11:17:43] [INFO] ====================================
-[2023-01-08 11:17:43] [INFO] GPU 0: CPU / llvmpipe (LLVM 15.0.5, 256 bits)
-
-```
-
-```console
-From terminal app within Ubuntu GUI
-
-python test_gpu.py
-[2023-01-08 11:20:36] [INFO] Searching for Vulkan compatible GPUs
-[2023-01-08 11:20:36] [INFO] ====================================
-[2023-01-08 11:20:36] [INFO] GPU count: 4
-[2023-01-08 11:20:36] [INFO] ====================================
-[2023-01-08 11:20:36] [INFO] Default GPU: 0
-[2023-01-08 11:20:36] [INFO] ====================================
-[2023-01-08 11:20:36] [INFO] GPU 0: Integrated / AMD Radeon Graphics (RADV RENOIR)
-[2023-01-08 11:20:36] [INFO] GPU 1: CPU / llvmpipe (LLVM 15.0.5, 256 bits)
-[2023-01-08 11:20:36] [INFO] GPU 2: CPU / llvmpipe (LLVM 15.0.5, 256 bits)
-[2023-01-08 11:20:36] [INFO] GPU 3: Integrated / AMD Radeon Graphics (RADV RENOIR)
-
+sudo gpasswd -a ${USER} render
+newgrp render
 ```

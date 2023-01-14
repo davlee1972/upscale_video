@@ -521,9 +521,15 @@ def merge_frames(
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
 
+
     ## delete merged png files
-    for frame in range(start_frame, end_frame + 1):
-        os.remove(str(frame) + ".png")
+    if os.path.exists(str(frame_batch) + ".mkv"):
+        for frame in range(start_frame, end_frame + 1):
+            os.remove(str(frame) + ".png")
+    else:
+        logging.error("Something went wrong with PNG merging..")
+        logging.error(str(frame_batch) + ".mkv not found..")
+        sys.exit("Error - Exiting")
 
 
 def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
@@ -552,9 +558,20 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
     result = subprocess.run(cmds, capture_output=True, text=True)
 
     if result.stderr:
+        if os.path.exists(output_file):
+            os.remove(output_file)
         logging.error("MKV merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
+        sys.exit("Error - Exiting")
+
+    ## delete merged mkv files
+    if os.path.exists(output_file):
+        for i in range(frame_batches):
+            os.remove(str(frame + 1) + ".mkv")
+    else:
+        logging.error("Something went wrong with MKV merging..")
+        logging.error(output_file + " not found..")
         sys.exit("Error - Exiting")
 
 
