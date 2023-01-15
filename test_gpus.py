@@ -9,14 +9,14 @@ from ncnn_vulkan import ncnn
 import argparse
 from upscale.upscale_processing import upscale_image, init_worker, logging_callback
 import time
-from multiprocessing import current_process, Pool
+import multiprocessing
 
 
 def upscale_images(input_file_name, output_file_name, scale, gpus):
 
     logging_items = []
 
-    i = int(current_process()._identity[0]) - 1
+    i = int(multiprocessing.current_process()._identity[0]) - 1
 
     start = time.time()
 
@@ -76,7 +76,7 @@ def run_tests(gpus=None, scale=None, runs=None):
         current_path = os.path.realpath(__file__).split(os.sep)[:-1]
         model_path = os.sep.join(current_path + ["models"])
 
-        pool = Pool(
+        pool = multiprocessing.get_context('spawn').Pool(
             processes=len(gpus),
             initializer=init_worker,
             initargs=(gpus, 0, model_path, "x_Compact_Pretrain", scale, "input", "output"),

@@ -9,8 +9,6 @@ import os
 import subprocess
 import tempfile
 import sys
-from ncnn_vulkan import ncnn
-from multiprocessing import Pool
 
 from upscale_processing import (
     get_metadata,
@@ -169,13 +167,6 @@ def fix_frames(
         for frame in range(max_frame):
             if frame not in bad_frames:
                 os.remove(str(frame + 1) + ".extract.png")
-
-    net = ncnn.Net()
-
-    # Use vulkan compute if vulkan is supported
-    gpu_info = ncnn.get_gpu_info()
-    if gpu_info and gpu_info.type() in [0, 1, 2]:
-        net.opt.use_vulkan_compute = True
 
     model_path = os.path.realpath(__file__).split(os.sep)
     model_path = os.sep.join(model_path[:-2] + ["models"])

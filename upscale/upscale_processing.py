@@ -14,7 +14,7 @@ import numpy as np
 import math
 import json
 from PIL import Image
-from multiprocessing import current_process, Pool
+import multiprocessing
 
 net = None
 model_input_name = "input"
@@ -51,7 +51,7 @@ def logging_callback(log_list):
 def init_worker(gpus, workers_used, model_path, model_file, scale, model_input, model_output):
     global net, model_input_name, model_output_name
 
-    gpu = current_process()._identity[0] - 1 - workers_used
+    gpu = multiprocessing.current_process()._identity[0] - 1 - workers_used
     net = ncnn.Net()
     net.opt.use_vulkan_compute = True
     net.set_vulkan_device(gpus[gpu])
@@ -324,7 +324,7 @@ def process_model(
     else:
         frames = frames_count
 
-    pool = Pool(
+    pool = multiprocessing.get_context('spawn').Pool(
         processes=len(gpus),
         initializer=init_worker,
         initargs=(gpus, workers_used, model_path, model_file, scale, model_input, model_output),
@@ -367,7 +367,7 @@ def process_denoise(frames_count, input_file_tag, denoise, remove=True):
     else:
         frames = frames_count
 
-    pool = Pool()
+    pool = multiprocessing.get_context('spawn').Pool()
 
     for frame in frames:
         input_file_name = str(frame) + "." + input_file_tag + ".png"
@@ -561,7 +561,7 @@ def upscale_frames(
 
     model_file = "x_Compact_Pretrain"
 
-    pool = Pool(
+    pool = multiprocessing.get_context('spawn').Pool(
         processes=len(gpus),
         initializer=init_worker,
         initargs=(gpus, workers_used, model_path, model_file, scale, "input", "output"),
