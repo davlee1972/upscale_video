@@ -9,29 +9,14 @@ import os
 import subprocess
 import tempfile
 import sys
-from ncnn_vulkan import ncnn
-from multiprocessing import Pool
 
 from upscale_processing import (
     get_metadata,
     get_crop_detect,
     process_model,
     process_denoise,
-    upscale_image,
+    upscale_frames,
 )
-
-
-def get_bad_frames(x):
-    result = []
-    for part in x.split(","):
-        if "-" in part:
-            a, b = part.split("-")
-            a, b = int(a), int(b)
-            result.extend(range(a, b + 1))
-        else:
-            a = int(part)
-            result.append(a)
-    return result
 
 
 def fix_frames(
@@ -40,6 +25,7 @@ def fix_frames(
     ffmpeg,
     scale,
     temp_dir,
+    gpus,
     anime,
     denoise,
     log_level,
@@ -53,6 +39,7 @@ def fix_frames(
     :param ffmpeg:
     :param scale:
     :param temp_dir:
+    :param gpus:
     :param anime:
     :param denoise:
     :param log_level:
@@ -82,6 +69,16 @@ def fix_frames(
         fh.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
         fh.setLevel(logging.DEBUG)
         logging.getLogger().addHandler(fh)
+
+    if gpus:
+        try:
+            gpus = gpus.split(",")
+            gpus = [int(g) for g in gpus]
+        except ValueError:
+            logging.error("Invalid gpus")
+            sys.exit("Error - Exiting")
+    else:
+        gpus = [0]
 
     logging.info("Processing File: " + input_file)
 
@@ -115,7 +112,7 @@ def fix_frames(
 
     crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
 
-    bad_frames = get_bad_frames(bad_frames)
+    bad_frames = get_frames(bad_frames)
 
     max_frame = 0
 
@@ -171,86 +168,61 @@ def fix_frames(
             if frame not in bad_frames:
                 os.remove(str(frame + 1) + ".extract.png")
 
-    net = ncnn.Net()
-
-    # Use vulkan compute if vulkan is supported
-    gpu_info = ncnn.get_gpu_info()
-    if gpu_info and gpu_info.type() in [0, 1, 2]:
-        net.opt.use_vulkan_compute = True
-
     model_path = os.path.realpath(__file__).split(os.sep)
     model_path = os.sep.join(model_path[:-2] + ["models"])
 
-    input_model_name = "extract"
+    workers_used = 0
+    input_file_tag = "extract"
 
     if anime:
         logging.info("Starting anime touchup...")
-        net.load_param(
-            os.path.join(
-                model_path, "1x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g.param"
-            )
+
+        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+        output_file_tag = "anime"
+
+        process_model(
+            bad_frames,
+            model_path,
+            model_file,
+            1,
+            "input",
+            "output",
+            input_file_tag,
+            output_file_tag,
+            gpus,
+            workers_used
         )
-        net.load_model(
-            os.path.join(model_path, "1x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g.bin")
-        )
-        input_name = "input"
-        output_name = "output"
 
-        for frame in bad_frames:
-            input_file_name = str(frame) + "." + input_model_name + ".png"
-
-            if os.path.exists(input_file_name):
-                process_model(
-                    input_file_name,
-                    str(frame) + ".anime.png",
-                    net,
-                    input_name,
-                    output_name,
-                )
-
-        input_model_name = "anime"
+        workers_used += len(gpus)
+        input_file_tag = "anime"
 
     if denoise:
         logging.info("Starting denoise touchup...")
-        pool = Pool()
 
-        for frame in bad_frames:
-            input_file_name = str(frame) + "." + input_model_name + ".png"
+        workers_used += process_denoise(bad_frames, input_file_tag, denoise)
 
-            if os.path.exists(input_file_name):
-                pool.apply_async(
-                    process_denoise,
-                    args=(
-                        str(frame) + "." + input_model_name + ".png",
-                        str(frame) + ".denoise.png",
-                        denoise,
-                    ),
-                    callback=logging.info,
-                )
-
-        pool.close()
-        pool.join()
-
-        input_model_name = "denoise"
+        input_file_tag = "denoise"
 
     logging.info("Starting upscale processing...")
 
-    # Load model param and bin. Make sure input and output names match what is in the .param file
-    net.load_param(os.path.join(model_path, str(scale) + "x_Compact_Pretrain.param"))
-    net.load_model(os.path.join(model_path, str(scale) + "x_Compact_Pretrain.bin"))
-    input_name = "input"
-    output_name = "output"
-
     for frame in bad_frames:
+        try:
+            os.remove(str(frame) + ".png")
+        except:
+            pass
 
-        input_file_name = str(frame) + "." + input_model_name + ".png"
-        output_file_name = str(frame) + ".png"
+    upscale_frames(
+        bad_frames,
+        None,
+        None,
+        input_file_tag,
+        scale,
+        gpus,
+        workers_used,
+        model_path,
+    )
 
-        upscale_image(
-            input_file_name, output_file_name, scale, net, input_name, output_name
-        )
-
-        logging.info("Upscaled frame " + str(frame))
+    logging.info("Upscaled frame " + str(frame))
 
     os.chdir(cwd_dir)
 
@@ -288,6 +260,9 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
+        "-g", "--gpus", help="Optional gpu #s to use. Example 0,1,3. Default is 0."
+    )
+    parser.add_argument(
         "-l", "--log_level", type=int, help="Logging level. logging.INFO is default"
     )
     parser.add_argument("-d", "--log_dir", help="Logging directory. logging directory")
@@ -300,6 +275,7 @@ if __name__ == "__main__":
         args.ffmpeg,
         args.scale,
         args.temp_dir,
+        args.gpus,
         args.anime,
         args.denoise,
         args.log_level,

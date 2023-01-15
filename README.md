@@ -34,59 +34,92 @@ git clone https://github.com/davlee1972/upscale_video.git
 
 # Usage
 
--r / --resume_processing can be used after you abort a run and want to pickup where you left off.
+**Step 1** - Calibrate your GPU(s)
 
--x / --extract_only will stop processing after frames extraction. You may want to run test_image.py
-on some extracted png files to sample what denoise level (-n / --denoise) to apply if needed
-and then resume processing (-r / --resume_processing) to pickup where you left off.
+Run python test_gpus.py which will show you what gpus are available.
+Run python test_gpus.py -g 0 -s 2 to test gpu 0 running x2 scaling.
+Run python test_gpus.py -g 0,0 -s 2 to test gpu 0 using two workers in parallel.
+Run python test_gpus.py -g 0,0,0 -s 2 to test gpu 0 using three workers in parallel.
+
+Review timing logs to see how many workers can your GPU support before
+performance starts to degrade.
+
+If you have a second, third, etc. gpu, repeat the process for the other gpus.
+Run python test_gpus.py -g 1 -s 2 to test gpu 1 running x2 scaling.
+Run python test_gpus.py -g 1,1 -s 2 to test gpu 1 using two workers in parallel.
+Run python test_gpus.py -g 1,1,1 -s 2 to test gpu 1 using three workers in parallel.
+
+Test your final GPU(s) configuration..
+
+Run python test_gpus.py -g 0,0,0,0,1,1 -s 2 to test gpu 0 with 4 workers
+and gpu 1 with 2 workers in parallel.
+
+-g, --gpus can be passed into upscale_video.py. If omitted upscale_video.py
+will just default to -g 0.
+
+**Step 2** - Sample your video upscaling if you want to apply any model filters.
+
+This is a nice to have if you have older videos and want to remove grain, etc..
+
+You can skip this step if you just want to apply AI upscaling only.
+
+Run upscale_video.py with the -x, --extract_only option.
+This will stop processing after frames extraction. 
+Run test_images.py on some extracted png files to sample what denoise level (-n, --denoise) to apply
+if needed. (-a, --anime) can also be passed in to apply anime enhancements.
+
+Run upscale_video.py with -r, --resume_processing to continue with upscaling.
 
 ```console
 Usage: python upscale_video.py -i INPUT_FILE -f FFMPEG
 
 options:
-  -h / --help                            Show this help message and exit
-  -i / --input_file INPUT_FILE           Input video file.
-  -o / --output_file OUTPUT_FILE         Optional output video file location.
+  -h, --help                            Show this help message and exit
+  -i, --input_file INPUT_FILE           Input video file.
+  -o, --output_file OUTPUT_FILE         Optional output video file location.
                                          Default is input_file + ('.2x.' or '.4x.')
-  -f / --ffmpeg FFMPEG                   Location of ffmpeg.
-  -e / --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for mkv file. Default is av1_qsv.
-  -a / --anime                           Adds processing for anime to remove grain and color bleeding.
-  -n / --denoise DENOISE                 Adds processing to remove film grain. Denoise level 1 to 30.
+  -f, --ffmpeg FFMPEG                   Location of ffmpeg.
+  -e, --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for mkv file. Default is av1_qsv.
+  -a, --anime                           Adds processing for anime to remove grain and color bleeding.
+  -n, --denoise DENOISE                 Adds processing to remove film grain. Denoise level 1 to 30.
                                          3 = light / 10 = heavy, etc.
-  -s / --scale SCALE                     Scale 2 or 4. Default is 2.
-  -t / --temp_dir TEMP_DIR               Temp directory. Default is tempfile.gettempdir().
-  -b / --batch_size BATCH_SIZE           Number of minutes to upscale per batch. Default is 1.
-  -r / --resume_processing               Does not purge any data in temp_dir when restarting.
-  -x / --extract_only                    Exits after frames extraction. You may want to
+  -s, --scale SCALE                     Scale 2 or 4. Default is 2.
+  -t, --temp_dir TEMP_DIR               Temp directory. Default is tempfile.gettempdir().
+  -g
+  -b, --batch_size BATCH_SIZE           Number of minutes to upscale per batch. Default is 1.
+  -r, --resume_processing               Does not purge any data in temp_dir when restarting.
+  -x, --extract_only                    Exits after frames extraction. You may want to
                                          run test_image.py on some extracted png files
                                          to sample what denoise level to apply if needed.
                                          Rerun with -r / --resume_processing to restart.
-  -l / --log_level LOG_LEVEL             Logging level. logging.INFO is default
-  -d / --log_dir LOG_DIR                 Logging directory. logging directory
+  -l, --log_level LOG_LEVEL             Logging level. logging.INFO is default
+  -d, --log_dir LOG_DIR                 Logging directory. logging directory
 
 ```
 
 ```console
-Usage: python test_image.py -i infile
+Usage: python test_images.py -i infile
 
 options:
-  -h / --help                      Show this help message and exit
-  -i / --input_file INPUT_FILE     Input image file.
-  -o / --output_file OUTPUT_FILE   Optional output image file.
-                                   Default is input_file + ('.2x.' or '.4x.')
-  -a / --anime                     Adds processing for anime to remove grain and smooth color.
-  -n / --denoise DENOISE           Adds processing to reduce image grain. Denoise level 1 to 30.
-                                   3 = light / 10 = heavy, etc.
-  -s / --scale SCALE               Scale 2 or 4. Default is 2.
+  -h, --help                          Show this help message and exit
+  -i, --input_frames INPUT_FRAMES     Input frames
+  -t, --temp_dir TEMP_DIR             Temp directory where extracted frames are saved. Default is tempfile.gettempdir().
+  -o, --output_dir OUTPUT_DIR         Output directory where test images will be saved.
+                                      Default is input_file + ('.2x.' or '.4x.')
+  -s, --scale SCALE                   Scale 2 or 4. Default is 2.
+  -a, --anime                         Adds processing for anime to remove grain and smooth color.
+  -n, --denoise DENOISE               Adds processing to reduce image grain. Denoise level 1 to 30.
+                                      3 = light / 10 = heavy, etc.
+  -g, --gpus GPUS                     Optional gpu #s to use. Example 0,1,3. Default is 0.
 
 ```
 
 ```console
-Usage: python test_gpu.py -g gpu
+Usage: python test_gpus.py -g gpu
 
 options:
-  -h / --help      Show this help message and exit
-  -g / --gpu GPU   Optional gpu number to test. -1 to test cpu.
+  -h, --help        Show this help message and exit
+  -g, --gpus GPUS   Optional gpus to test. examples: 0 or 0,1 or 0,1,1 (to test same gpu twice)
 
 ```
 
@@ -113,9 +146,9 @@ Upscaled 2x with light denoise using --scale 2 --denoise 2.
 This python code is used to scale my existing 2k bluray collecion to 4k
 
 Troubleshooting Ubuntu. It took me a while to figure out why my AMD gpu on my linux server wasn't working
-with Vulkan. Apparently you have to be a member of the "render" group while running in a shell session.
+with Vulkan. Apparently you have to be a member of the ‘render’ group while running in a shell session.
 
-In order to access GPU capabilities, a user needs to have the correct permissions on system. The following
+In order to access GPU capabilities, a user needs to have the correct permissions on the system. The following
 will list the group assigned ownership of the render nodes, and list the groups the active user is a member of:
 
 ```console

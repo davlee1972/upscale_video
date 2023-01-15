@@ -14,7 +14,51 @@ import numpy as np
 import math
 import json
 from PIL import Image
-from multiprocessing import Pool
+import multiprocessing
+
+net = None
+model_input_name = "input"
+model_output_name = "output"
+
+
+def get_frames(x):
+    result = []
+    for part in x.split(","):
+        if "-" in part:
+            a, b = part.split("-")
+            a, b = int(a), int(b)
+            result.extend(range(a, b + 1))
+        else:
+            a = int(part)
+            result.append(a)
+    return result
+
+
+def logging_callback(log_list):
+    error_check = False
+    for level, message in log_list:
+        if level == "info":
+            logging.info(message)
+        elif level == "debug":
+            logging.debug(message)
+        elif level == "error":
+            logging.error(message)
+            error_check = True
+        if error_check:
+            sys.exit("Error - Exiting")
+
+
+def init_worker(gpus, workers_used, model_path, model_file, scale, model_input, model_output):
+    global net, model_input_name, model_output_name
+
+    gpu = multiprocessing.current_process()._identity[0] - 1 - workers_used
+    net = ncnn.Net()
+    net.opt.use_vulkan_compute = True
+    net.set_vulkan_device(gpus[gpu])
+    net.load_param(os.path.join(model_path, str(scale) + model_file + ".param"))
+    net.load_model(os.path.join(model_path, str(scale) + model_file) + ".bin")
+    model_input_name = model_input
+    model_output_name = model_output
 
 
 def get_metadata(ffmpeg, input_file):
@@ -30,23 +74,23 @@ def get_metadata(ffmpeg, input_file):
         frame_rate = info_dict["frame_rate"]
     else:
         cmds = [
-                ffmpeg[:-6] + "ffprobe",
-                "-hide_banner",
-                "-v",
-                "quiet",
-                "-show_format",
-                "-select_streams",
-                "v:0",
-                "-count_packets",
-                "-show_entries",
-                "stream=nb_read_packets,r_frame_rate",
-                "-print_format",
-                "json",
-                "-loglevel",
-                "error",
-                "-i",
-                input_file,
-            ]
+            ffmpeg[:-6] + "ffprobe",
+            "-hide_banner",
+            "-v",
+            "quiet",
+            "-show_format",
+            "-select_streams",
+            "v:0",
+            "-count_packets",
+            "-show_entries",
+            "stream=nb_read_packets,r_frame_rate",
+            "-print_format",
+            "json",
+            "-loglevel",
+            "error",
+            "-i",
+            input_file,
+        ]
 
         logging.info(cmds)
 
@@ -102,21 +146,21 @@ def get_crop_detect(ffmpeg, input_file, temp_dir):
         os.chdir(path)
 
         cmds = [
-                ffmpeg[:-6] + "ffprobe",
-                "-hide_banner",
-                "-v",
-                "quiet",
-                "-f",
-                "lavfi",
-                "-i",
-                "movie=" + file_name + ",cropdetect",
-                "-show_entries",
-                "packet_tags=lavfi.cropdetect.w,lavfi.cropdetect.h,lavfi.cropdetect.x,lavfi.cropdetect.y",
-                "-print_format",
-                "json",
-                "-loglevel",
-                "error",
-            ]
+            ffmpeg[:-6] + "ffprobe",
+            "-hide_banner",
+            "-v",
+            "quiet",
+            "-f",
+            "lavfi",
+            "-i",
+            "movie=" + file_name + ",cropdetect",
+            "-show_entries",
+            "packet_tags=lavfi.cropdetect.w,lavfi.cropdetect.h,lavfi.cropdetect.x,lavfi.cropdetect.y",
+            "-print_format",
+            "json",
+            "-loglevel",
+            "error",
+        ]
 
         logging.info(cmds)
 
@@ -213,25 +257,13 @@ def extract_frames(
             sys.exit("Error - Exiting")
 
     if extract_only:
-        logging.inf("Extract Only - Frames Extraction Completed")
+        logging.info("Extract Only - Frames Extraction Completed")
         sys.exit()
 
 
-def process_denoise(input_file_name, output_file_name, denoise, remove=True):
+def apply_model(input_file, output_file, remove):
 
-    img = cv2.UMat(cv2.imread(input_file_name))
-
-    output = cv2.fastNlMeansDenoisingColored(img, None, denoise, 10, 5, 9)
-
-    cv2.imwrite(output_file_name, output)
-
-    if remove:
-        os.remove(input_file_name)
-
-    return "Processed Denoise: " + output_file_name
-
-
-def process_model(input_file, output_file, net, input_name, output_name, remove=True):
+    logging_items = []
 
     # Load image using opencv
     img = cv2.imread(input_file)
@@ -250,30 +282,117 @@ def process_model(input_file, output_file, net, input_name, output_name, remove=
     try:
         # Make sure the input and output names match the param file
         ex = net.create_extractor()
-        ex.input(input_name, mat_in)
-        ret, mat_out = ex.extract(output_name)
+        ex.input(model_input_name, mat_in)
+        ret, mat_out = ex.extract(model_output_name)
         out = np.array(mat_out)
 
         # Transpose the output from `c, h, w` to `h, w, c` and put it back in 0-255 range
         output = out.transpose(1, 2, 0) * 255
 
         # Save image using opencv
-        cv2.imwrite(output_file, output)
+        if output_file:
+            cv2.imwrite(output_file, output)
     except Exception as e:
-        loggin.error("Model processing failed")
-        logging.error(e)
+        logging_items.append(["error", "Model processing failed"])
+        logging_items.append(["error", e])
         ncnn.destroy_gpu_instance()
-        sys.exit("Error - Exiting")
+        return logging_items
 
     if remove:
         os.remove(input_file)
 
-    logging.info("Processed Model: " + output_file)
+    logging_items.append(["info", "Processed Model: " + output_file])
+    return logging_items
 
 
-def process_tile(
-    net, img, input_name, output_name, tile_size, scale, y, x, height, width, output
+def process_model(
+    frames_count,
+    model_path,
+    model_file,
+    scale,
+    model_input,
+    model_output,
+    input_file_tag,
+    output_file_tag,
+    gpus,
+    workers_used,
+    remove=True,
 ):
+
+    if isinstance(frames_count, int):
+        frames = range(1, frames_count + 1)
+    else:
+        frames = frames_count
+
+    pool = multiprocessing.get_context('spawn').Pool(
+        processes=len(gpus),
+        initializer=init_worker,
+        initargs=(gpus, workers_used, model_path, model_file, scale, model_input, model_output),
+    )
+
+    for frame in frames:
+        input_file_name = str(frame) + "." + input_file_tag + ".png"
+        output_file_name = str(frame) + "." + output_file_tag + ".png"
+
+        if os.path.exists(input_file_name):
+            pool.apply_async(
+                apply_model,
+                args=(input_file_name, output_file_name, remove),
+                callback=logging_callback,
+            )
+
+    pool.close()
+    pool.join()
+    del pool
+
+
+def apply_denoise(input_file_name, output_file_name, denoise, remove):
+
+    img = cv2.UMat(cv2.imread(input_file_name))
+
+    output = cv2.fastNlMeansDenoisingColored(img, None, denoise, 10, 5, 9)
+
+    cv2.imwrite(output_file_name, output)
+
+    if remove:
+        os.remove(input_file_name)
+
+    return [["info", "Processed Denoise: " + output_file_name]]
+
+
+def process_denoise(frames_count, input_file_tag, denoise, remove=True):
+
+    if isinstance(frames_count, int):
+        frames = range(1, frames_count + 1)
+    else:
+        frames = frames_count
+
+    pool = multiprocessing.get_context('spawn').Pool()
+
+    for frame in frames:
+        input_file_name = str(frame) + "." + input_file_tag + ".png"
+        output_file_name = str(frame) + ".denoise.png"
+
+        if os.path.exists(input_file_name):
+            pool.apply_async(
+                apply_denoise,
+                args=(
+                    input_file_name,
+                    output_file_name,
+                    denoise,
+                    remove,
+                ),
+                callback=logging_callback,
+            )
+
+    pool.close()
+    pool.join()
+
+    return pool._processes
+
+
+def process_tile(img, tile_size, scale, y, x, height, width, output, logging_items):
+
     # extract tile from input image
     ofs_y = y * tile_size
     ofs_x = x * tile_size
@@ -328,14 +447,15 @@ def process_tile(
     try:
         # Make sure the input and output names match the param file
         ex = net.create_extractor()
-        ex.input(input_name, mat_in)
-        ret, mat_out = ex.extract(output_name)
+        ex.input(model_input_name, mat_in)
+        ret, mat_out = ex.extract(model_output_name)
         output_tile = np.array(mat_out)
     except Exception as e:
-        logging.error("Upscale failed")
+        logging_items.append(["error", "Upscale failed"])
+        logging_items.append(["error", e])
         logging.error(e)
         ncnn.destroy_gpu_instance()
-        sys.exit("Error - Exiting")
+        return -1
 
     # Transpose the output from `c, h, w` to `h, w, c` and put it back in 0-255 range
     output_tile = output_tile.transpose(1, 2, 0) * 255
@@ -357,8 +477,10 @@ def process_tile(
 
 
 def upscale_image(
-    input_file_name, output_file_name, scale, net, input_name, output_name, remove=True
+    input_file_name, output_file_name, scale, frame_batch, frame, end_frame, remove=True
 ):
+
+    logging_items = []
 
     # Load image using opencv
     img = cv2.imread(input_file_name)
@@ -379,76 +501,103 @@ def upscale_image(
     for y in range(tiles_y):
         for x in range(tiles_x):
             tile_idx = y * tiles_x + x + 1
-            logging.debug(f"\tProcessing Tile: {tile_idx}/{tiles_x * tiles_y}")
-            process_tile(
-                net,
-                img,
-                input_name,
-                output_name,
-                tile_size,
-                scale,
-                y,
-                x,
-                height,
-                width,
-                output,
+
+            logging_items.append(
+                ["debug", f"Processing Tile: {tile_idx}/{tiles_x * tiles_y}"]
             )
+
+            if (
+                process_tile(
+                    img, tile_size, scale, y, x, height, width, output, logging_items
+                )
+                == -1
+            ):
+                return logging_items
+
     if output_file_name:
         cv2.imwrite(output_file_name, output)
 
     if remove:
         os.remove(input_file_name)
 
+    if frame_batch:
+        if isinstance(frame_batch, int):
+            logging_items.append(
+                [
+                    "info",
+                    "Upscaling Batch: "
+                    + str(frame_batch)
+                    + " : Upscaled "
+                    + str(frame)
+                    + "/"
+                    + str(end_frame),
+                ]
+            )
+        else:
+            logging_items.append(["info", "Upscaled " + output_file_name])
+    else:
+        logging_items.append(["info", "Upscaled " + str(frame) + "/" + str(end_frame)])
+
+    return logging_items
+
 
 def upscale_frames(
-    net,
-    input_model_name,
     frame_batch,
     start_frame,
     end_frame,
+    input_file_tag,
     scale,
-    input_name,
-    output_name,
+    gpus,
+    workers_used,
+    model_path,
+    upscale_dir=None,
+    remove=True,
 ):
 
-    logging.info(
-        "Upscaling Batch: "
-        + str(frame_batch)
-        + " : Number of frames: "
-        + str(1 + end_frame - start_frame)
+    if frame_batch and isinstance(frame_batch, list):
+        frames = frame_batch
+    else:
+        frames = range(start_frame, end_frame + 1)
+
+    model_file = "x_Compact_Pretrain"
+
+    pool = multiprocessing.get_context('spawn').Pool(
+        processes=len(gpus),
+        initializer=init_worker,
+        initargs=(gpus, workers_used, model_path, model_file, scale, "input", "output"),
     )
 
-    frames_upscaled = 0
-
     ## upscale frames
-    for frame in range(start_frame, end_frame + 1):
+    for frame in frames:
 
-        input_file_name = str(frame) + "." + input_model_name + ".png"
+        input_file_name = str(frame) + "." + input_file_tag + ".png"
         output_file_name = str(frame) + ".png"
 
+        if upscale_dir:
+            output_file_name = os.path.join(upscale_dir, output_file_name)
+
         if os.path.exists(output_file_name):
-            frames_upscaled += 1
             continue
 
         if not os.path.exists(input_file_name):
-            frames_upscaled += 1
             continue
 
-        upscale_image(
-            input_file_name, output_file_name, scale, net, input_name, output_name
+        pool.apply_async(
+            upscale_image,
+            args=(
+                input_file_name,
+                output_file_name,
+                scale,
+                frame_batch,
+                frame,
+                end_frame,
+                remove,
+            ),
+            callback=logging_callback,
         )
 
-        frames_upscaled += 1
-
-        logging.info(
-            "Upscaling Batch: "
-            + str(frame_batch)
-            + " : Upscaled "
-            + str(frames_upscaled)
-            + "/"
-            + str(1 + end_frame - start_frame)
-        )
-
+    pool.close()
+    pool.join()
 
 def merge_frames(
     ffmpeg,
@@ -521,7 +670,6 @@ def merge_frames(
     logging.info("Batch merged into " + str(frame_batch) + ".mkv")
     logging.info(str(end_frame) + " total frames upscaled")
 
-
     ## delete merged png files
     if os.path.exists(str(frame_batch) + ".mkv"):
         for frame in range(start_frame, end_frame + 1):
@@ -539,20 +687,20 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
             f.write("file " + str(i + 1) + ".mkv\n")
 
     cmds = [
-            ffmpeg,
-            "-hide_banner",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            "merge_list.txt",
-            "-loglevel",
-            "error",
-            "-c",
-            "copy",
-            output_file,
-        ]
+        ffmpeg,
+        "-hide_banner",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        "merge_list.txt",
+        "-loglevel",
+        "error",
+        "-c",
+        "copy",
+        output_file,
+    ]
 
     logging.info(cmds)
     result = subprocess.run(cmds, capture_output=True, text=True)
@@ -568,7 +716,7 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
     ## delete merged mkv files
     if os.path.exists(output_file):
         for i in range(frame_batches):
-            os.remove(str(frame + 1) + ".mkv")
+            os.remove(str(frame_batches + 1) + ".mkv")
     else:
         logging.error("Something went wrong with MKV merging..")
         logging.error(output_file + " not found..")
@@ -583,6 +731,7 @@ def process_file(
     scale,
     temp_dir,
     batch_size,
+    gpus,
     resume_processing,
     extract_only,
     anime,
@@ -600,6 +749,7 @@ def process_file(
     :param scale:
     :param temp_dir:
     :param batch_size:
+    :param gpus:
     :param resume_processing:
     :param extract_only:
     :param anime:
@@ -624,18 +774,28 @@ def process_file(
         stream=sys.stdout,
     )
 
-    if not output_file:
-        output_file = input_file.split(".")
-        output_file_ext = output_file[-1]
-        output_file = ".".join(output_file[:-1] + [str(scale) + "x", output_file_ext])
-
     if log_dir:
-        log_file = os.path.join(log_dir, output_file.split(os.sep)[-1][:-4] + ".log")
+        log_file = os.path.join(log_dir, input_file.split(os.sep)[-1][:-4] + ".log")
         # create log file handler and set level to debug
         fh = logging.FileHandler(log_file)
         fh.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
         fh.setLevel(logging.DEBUG)
         logging.getLogger().addHandler(fh)
+
+    if gpus:
+        try:
+            gpus = gpus.split(",")
+            gpus = [int(g) for g in gpus]
+        except ValueError:
+            logging.error("Invalid gpus")
+            sys.exit("Error - Exiting")
+    else:
+        gpus = [0]
+
+    if not output_file:
+        output_file = input_file.split(".")
+        output_file_ext = output_file[-1]
+        output_file = ".".join(output_file[:-1] + [str(scale) + "x", output_file_ext])
 
     logging.info("Processing File: " + input_file)
 
@@ -691,88 +851,56 @@ def process_file(
         extract_only,
     )
 
-    net = ncnn.Net()
-
-    # Use vulkan compute if vulkan is supported
-    gpu_info = ncnn.get_gpu_info()
-    if gpu_info and gpu_info.type() in [0, 1, 2]:
-        net.opt.use_vulkan_compute = True
-
     model_path = os.path.realpath(__file__).split(os.sep)
     model_path = os.sep.join(model_path[:-2] + ["models"])
 
-    input_model_name = "extract"
+    workers_used = 0
+    input_file_tag = "extract"
 
     if anime:
         logging.info("Starting anime touchup...")
-        net.load_param(
-            os.path.join(
-                model_path, "1x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g.param"
-            )
+
+        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+        output_file_tag = "anime"
+
+        process_model(
+            frames_count,
+            model_path,
+            model_file,
+            1,
+            "input",
+            "output",
+            input_file_tag,
+            output_file_tag,
+            gpus,
+            workers_used,
+            remove=True,
         )
-        net.load_model(
-            os.path.join(model_path, "1x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g.bin")
-        )
-        input_name = "input"
-        output_name = "output"
 
-        for frame in range(frames_count):
-            input_file_name = str(frame + 1) + "." + input_model_name + ".png"
-
-            if os.path.exists(input_file_name):
-                process_model(
-                    input_file_name,
-                    str(frame + 1) + ".anime.png",
-                    net,
-                    input_name,
-                    output_name,
-                )
-
-        input_model_name = "anime"
+        workers_used += len(gpus)
+        input_file_tag = "anime"
 
     if denoise:
         logging.info("Starting denoise touchup...")
-        pool = Pool()
 
-        for frame in range(frames_count):
-            input_file_name = str(frame + 1) + "." + input_model_name + ".png"
+        workers_used += process_denoise(frames_count, input_file_tag, denoise)
 
-            if os.path.exists(input_file_name):
-                pool.apply_async(
-                    process_denoise,
-                    args=(
-                        input_file_name,
-                        str(frame + 1) + ".denoise.png",
-                        denoise,
-                    ),
-                    callback=logging.info,
-                )
-
-        pool.close()
-        pool.join()
-
-        input_model_name = "denoise"
+        input_file_tag = "denoise"
 
     logging.info("Starting upscale processing...")
-
-    # Load model param and bin. Make sure input and output names match what is in the .param file
-    net.load_param(os.path.join(model_path, str(scale) + "x_Compact_Pretrain.param"))
-    net.load_model(os.path.join(model_path, str(scale) + "x_Compact_Pretrain.bin"))
-    input_name = "input"
-    output_name = "output"
 
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
         upscale_frames(
-            net,
-            input_model_name,
             frame_batch,
             frame_range[0],
             frame_range[1],
+            input_file_tag,
             scale,
-            input_name,
-            output_name,
+            gpus,
+            workers_used,
+            model_path,
         )
 
         merge_frames(

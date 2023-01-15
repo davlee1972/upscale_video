@@ -8,16 +8,15 @@ import logging
 import os
 import tempfile
 import sys
-from ncnn_vulkan import ncnn
-from multiprocessing import Pool
+
 
 from upscale_processing import (
     get_metadata,
     get_crop_detect,
+    extract_frames,
     process_model,
     process_denoise,
-    extract_frames,
-    upscale_image,
+    upscale_frames,
 )
 
 
@@ -26,6 +25,7 @@ def upscale_only(
     ffmpeg,
     scale,
     temp_dir,
+    gpus,
     upscale_dir,
     extract_only,
     anime,
@@ -40,6 +40,7 @@ def upscale_only(
     :param ffmpeg:
     :param scale:
     :param temp_dir:
+    :param gpus:
     :param extract_only:
     :param anime:
     :param denoise:
@@ -73,6 +74,16 @@ def upscale_only(
         fh.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
         fh.setLevel(logging.DEBUG)
         logging.getLogger().addHandler(fh)
+
+    if gpus:
+        try:
+            gpus = gpus.split(",")
+            gpus = [int(g) for g in gpus]
+        except ValueError:
+            logging.error("Invalid gpus")
+            sys.exit("Error - Exiting")
+    else:
+        gpus = [0]
 
     logging.info("Processing File: " + input_file)
 
@@ -123,92 +134,58 @@ def upscale_only(
         extract_only,
     )
 
-    net = ncnn.Net()
-
-    # Use vulkan compute if vulkan is supported
-    gpu_info = ncnn.get_gpu_info()
-    if gpu_info and gpu_info.type() in [0, 1, 2]:
-        net.opt.use_vulkan_compute = True
-
     model_path = os.path.realpath(__file__).split(os.sep)
     model_path = os.sep.join(model_path[:-2] + ["models"])
 
-    input_model_name = "extract"
+    workers_used = 0
+    input_file_tag = "extract"
 
     if anime:
         logging.info("Starting anime touchup...")
-        net.load_param(
-            os.path.join(
-                model_path, "1x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g.param"
-            )
+
+        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+        output_file_tag = "anime"
+
+        process_model(
+            frames_count,
+            model_path,
+            model_file,
+            1,
+            "input",
+            "output",
+            input_file_tag,
+            output_file_tag,
+            gpus,
+            workers_used
         )
-        net.load_model(
-            os.path.join(model_path, "1x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g.bin")
-        )
-        input_name = "input"
-        output_name = "output"
 
-        for frame in range(frames_count):
-            input_file_name = str(frame + 1) + "." + input_model_name + ".png"
-
-            if os.path.exists(input_file_name):
-                process_model(
-                    input_file_name,
-                    str(frame + 1) + ".anime.png",
-                    net,
-                    input_name,
-                    output_name,
-                )
-
-        input_model_name = "anime"
+        workers_used += len(gpus)
+        input_file_tag = "anime"
 
     if denoise:
         logging.info("Starting denoise touchup...")
-        pool = Pool()
 
-        for frame in range(frames_count):
-            input_file_name = str(frame + 1) + "." + input_model_name + ".png"
+        workers_used += process_denoise(frames_count, input_file_tag, denoise)
 
-            if os.path.exists(input_file_name):
-                pool.apply_async(
-                    process_denoise,
-                    args=(
-                        str(frame + 1) + "." + input_model_name + ".png",
-                        str(frame + 1) + ".denoise.png",
-                        denoise,
-                    ),
-                    callback=logging.info,
-                )
-
-        pool.close()
-        pool.join()
-
-        input_model_name = "denoise"
+        input_file_tag = "denoise"
 
     logging.info("Starting upscale processing...")
 
-    # Load model param and bin. Make sure input and output names match what is in the .param file
-    net.load_param(os.path.join(model_path, str(scale) + "x_Compact_Pretrain.param"))
-    net.load_model(os.path.join(model_path, str(scale) + "x_Compact_Pretrain.bin"))
-    input_name = "input"
-    output_name = "output"
+    ## process input file in batches
+    upscale_frames(
+        None,
+        2,
+        frames_count,
+        input_file_tag,
+        scale,
+        gpus,
+        workers_used,
+        model_path,
+        upscale_dir,
+    )
 
-    for frame in range(frames_count):
-
-        input_file_name = str(frame + 1) + "." + input_model_name + ".png"
-        output_file_name = str(frame + 1) + ".png"
-
-        if not os.path.exists(input_file_name):
-            continue
-
-        if upscale_dir:
-            output_file_name = os.path.join(upscale_dir, output_file_name)
-
-        upscale_image(
-            input_file_name, output_file_name, scale, net, input_name, output_name
-        )
-
-        logging.info("Upscaled frame " + str(frame + 1) + "/" + str(frames_count))
+    pool.close()
+    pool.join()
 
     with open("upscaled.txt", "w") as f:
         f.write("Upscaled")
@@ -243,6 +220,9 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
+        "-g", "--gpus", help="Optional gpu #s to use. Example 0,1,3. Default is 0."
+    )
+    parser.add_argument(
         "-u", "--upscale_dir", help="Upscale directory. Default is same as temp_dir."
     )
     parser.add_argument(
@@ -263,6 +243,7 @@ if __name__ == "__main__":
         args.ffmpeg,
         args.scale,
         args.temp_dir,
+        args.gpus,
         args.upscale_dir,
         args.extract_only,
         args.anime,

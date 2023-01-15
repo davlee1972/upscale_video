@@ -49,6 +49,9 @@ if __name__ == "__main__":
         help="Number of minutes to upscale per batch. Default is 10.",
     )
     parser.add_argument(
+        "-g", "--gpus", help="Optional gpus to use. Example 0,1,1,2. Default is 0."
+    )
+    parser.add_argument(
         "-r",
         "--resume_processing",
         action="store_true",
@@ -75,6 +78,7 @@ if __name__ == "__main__":
         args.scale,
         args.temp_dir,
         args.batch_size,
+        args.gpus,
         args.resume_processing,
         args.extract_only,
         args.anime,
