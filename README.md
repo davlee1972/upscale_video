@@ -92,7 +92,7 @@ options:
   -s, --scale SCALE                     Scale 2 or 4. Default is 2.
   -t, --temp_dir TEMP_DIR               Temp directory. Default is tempfile.gettempdir().
   -g, --gpus GPUS                       Optional gpus to use. Example 0,1,1,2. Default is 0.
-  -b, --batch_size BATCH_SIZE           Number of minutes to upscale per batch. Default is 1.
+  -b, --batch_size BATCH_SIZE           Number of minutes to upscale per batch. Default is 10.
   -r, --resume_processing               Does not purge any data in temp_dir when restarting.
   -x, --extract_only                    Exits after frames extraction. You may want to
                                          run test_image.py on some extracted png files
