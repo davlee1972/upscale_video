@@ -96,7 +96,9 @@ def process_image(
     if denoise:
         logging.info("Starting denoise touchup...")
 
-        workers_used += process_denoise(input_frames, input_file_tag, denoise, remove=False)
+        workers_used += process_denoise(
+            input_frames, input_file_tag, denoise, remove=False
+        )
 
         input_file_tag = "denoise"
 

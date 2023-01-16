@@ -16,6 +16,7 @@ import json
 from PIL import Image
 import multiprocessing
 
+
 net = None
 model_input_name = "input"
 model_output_name = "output"
@@ -48,13 +49,19 @@ def logging_callback(log_list):
             sys.exit("Error - Exiting")
 
 
-def init_worker(gpus, workers_used, model_path, model_file, scale, model_input, model_output):
+def init_worker(
+    gpus, workers_used, model_path, model_file, scale, model_input, model_output
+):
     global net, model_input_name, model_output_name
 
     gpu = multiprocessing.current_process()._identity[0] - 1 - workers_used
+
     net = ncnn.Net()
+
     net.opt.use_vulkan_compute = True
+
     net.set_vulkan_device(gpus[gpu])
+
     net.load_param(os.path.join(model_path, str(scale) + model_file + ".param"))
     net.load_model(os.path.join(model_path, str(scale) + model_file) + ".bin")
     model_input_name = model_input
@@ -324,10 +331,18 @@ def process_model(
     else:
         frames = frames_count
 
-    pool = multiprocessing.get_context('spawn').Pool(
+    pool = multiprocessing.get_context("spawn").Pool(
         processes=len(gpus),
         initializer=init_worker,
-        initargs=(gpus, workers_used, model_path, model_file, scale, model_input, model_output),
+        initargs=(
+            gpus,
+            workers_used,
+            model_path,
+            model_file,
+            scale,
+            model_input,
+            model_output,
+        ),
     )
 
     for frame in frames:
@@ -343,7 +358,6 @@ def process_model(
 
     pool.close()
     pool.join()
-    del pool
 
 
 def apply_denoise(input_file_name, output_file_name, denoise, remove):
@@ -367,7 +381,7 @@ def process_denoise(frames_count, input_file_tag, denoise, remove=True):
     else:
         frames = frames_count
 
-    pool = multiprocessing.get_context('spawn').Pool()
+    pool = multiprocessing.get_context("spawn").Pool()
 
     for frame in frames:
         input_file_name = str(frame) + "." + input_file_tag + ".png"
@@ -561,7 +575,7 @@ def upscale_frames(
 
     model_file = "x_Compact_Pretrain"
 
-    pool = multiprocessing.get_context('spawn').Pool(
+    pool = multiprocessing.get_context("spawn").Pool(
         processes=len(gpus),
         initializer=init_worker,
         initargs=(gpus, workers_used, model_path, model_file, scale, "input", "output"),
@@ -598,6 +612,7 @@ def upscale_frames(
 
     pool.close()
     pool.join()
+
 
 def merge_frames(
     ffmpeg,

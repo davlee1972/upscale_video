@@ -76,10 +76,18 @@ def run_tests(gpus=None, scale=None, runs=None):
         current_path = os.path.realpath(__file__).split(os.sep)[:-1]
         model_path = os.sep.join(current_path + ["models"])
 
-        pool = multiprocessing.get_context('spawn').Pool(
+        pool = multiprocessing.get_context("spawn").Pool(
             processes=len(gpus),
             initializer=init_worker,
-            initargs=(gpus, 0, model_path, "x_Compact_Pretrain", scale, "input", "output"),
+            initargs=(
+                gpus,
+                0,
+                model_path,
+                "x_Compact_Pretrain",
+                scale,
+                "input",
+                "output",
+            ),
         )
 
         logging.info("")

@@ -190,7 +190,7 @@ def fix_frames(
             input_file_tag,
             output_file_tag,
             gpus,
-            workers_used
+            workers_used,
         )
 
         workers_used += len(gpus)

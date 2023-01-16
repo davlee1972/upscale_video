@@ -156,7 +156,7 @@ def upscale_only(
             input_file_tag,
             output_file_tag,
             gpus,
-            workers_used
+            workers_used,
         )
 
         workers_used += len(gpus)
@@ -183,9 +183,6 @@ def upscale_only(
         model_path,
         upscale_dir,
     )
-
-    pool.close()
-    pool.join()
 
     with open("upscaled.txt", "w") as f:
         f.write("Upscaled")
