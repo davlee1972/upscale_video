@@ -46,7 +46,7 @@ Run python test_gpus.py -g 0,0 -s 2 to test gpu 0 using two workers in parallel.
 
 Run python test_gpus.py -g 0,0,0 -s 2 to test gpu 0 using three workers in parallel.
 
-Review timing logs to see how many workers can your GPU support before performance starts to degrade.
+Review timing logs to see how many workers your GPU can support before performance starts to degrade.
 
 **If you have a second, third, etc. gpu, repeat the process for the other gpus.**
 
@@ -91,7 +91,7 @@ options:
                                          3 = light / 10 = heavy, etc.
   -s, --scale SCALE                     Scale 2 or 4. Default is 2.
   -t, --temp_dir TEMP_DIR               Temp directory. Default is tempfile.gettempdir().
-  -g
+  -g, --gpus GPUS                       Optional gpus to use. Example 0,1,1,2. Default is 0.
   -b, --batch_size BATCH_SIZE           Number of minutes to upscale per batch. Default is 1.
   -r, --resume_processing               Does not purge any data in temp_dir when restarting.
   -x, --extract_only                    Exits after frames extraction. You may want to
@@ -104,28 +104,28 @@ options:
 ```
 
 ```console
-Usage: python test_images.py -i infile
+Usage: python test_images.py -i input_frames -o output_dir
 
 options:
   -h, --help                          Show this help message and exit
-  -i, --input_frames INPUT_FRAMES     Input frames
+  -i, --input_frames INPUT_FRAMES     List of input frames in format like 1,3,5-7,10-12,15
   -t, --temp_dir TEMP_DIR             Temp directory where extracted frames are saved. Default is tempfile.gettempdir().
   -o, --output_dir OUTPUT_DIR         Output directory where test images will be saved.
-                                      Default is input_file + ('.2x.' or '.4x.')
   -s, --scale SCALE                   Scale 2 or 4. Default is 2.
   -a, --anime                         Adds processing for anime to remove grain and smooth color.
   -n, --denoise DENOISE               Adds processing to reduce image grain. Denoise level 1 to 30.
                                       3 = light / 10 = heavy, etc.
-  -g, --gpus GPUS                     Optional gpu #s to use. Example 0,1,3. Default is 0.
+  -g, --gpus GPUS                     Optional gpus to use. Example 0,1,1,2. Default is 0.
 
 ```
 
 ```console
-Usage: python test_gpus.py -g gpu
+Usage: python test_gpus.py -g gpus
 
 options:
-  -h, --help        Show this help message and exit
-  -g, --gpus GPUS   Optional gpus to test. examples: 0 or 0,1 or 0,1,1 (to test same gpu twice)
+  -h, --help           Show this help message and exit
+  -g, --gpus GPUS      Optional gpus to test. examples: 0 or 0,1 or 0,1,1 (to test same gpu twice)
+  -s, --scale SCALE    Scale 2 or 4. Default is 2.
 
 ```
 
