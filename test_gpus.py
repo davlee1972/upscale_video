@@ -76,10 +76,18 @@ def run_tests(gpus=None, scale=None, runs=None):
         current_path = os.path.realpath(__file__).split(os.sep)[:-1]
         model_path = os.sep.join(current_path + ["models"])
 
-        pool = multiprocessing.get_context('spawn').Pool(
+        pool = multiprocessing.get_context("spawn").Pool(
             processes=len(gpus),
             initializer=init_worker,
-            initargs=(gpus, 0, model_path, "x_Compact_Pretrain", scale, "input", "output"),
+            initargs=(
+                gpus,
+                0,
+                model_path,
+                "x_Compact_Pretrain",
+                scale,
+                "input",
+                "output",
+            ),
         )
 
         logging.info("")
@@ -87,16 +95,20 @@ def run_tests(gpus=None, scale=None, runs=None):
         logging.info("====================================")
         start = time.time()
 
-        for i in range(runs):
-            input_file = os.sep.join(current_path + ["sample.png"])
-            pool.apply_async(
-                upscale_images,
-                args=(input_file, None, scale, gpus),
-                callback=logging_callback,
-            )
+        try:
+            for i in range(runs):
+                input_file = os.sep.join(current_path + ["sample.png"])
+                pool.apply_async(
+                    upscale_images,
+                    args=(input_file, None, scale, gpus),
+                    callback=logging_callback,
+                )
 
-        pool.close()
-        pool.join()
+            pool.close()
+            pool.join()
+        except KeyboardInterrupt:
+            pool.terminate()
+            pool.join()
 
         total = time.time() - start
 
