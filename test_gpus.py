@@ -95,20 +95,16 @@ def run_tests(gpus=None, scale=None, runs=None):
         logging.info("====================================")
         start = time.time()
 
-        try:
-            for i in range(runs):
-                input_file = os.sep.join(current_path + ["sample.png"])
-                pool.apply_async(
-                    upscale_images,
-                    args=(input_file, None, scale, gpus),
-                    callback=logging_callback,
-                )
+        for i in range(runs):
+            input_file = os.sep.join(current_path + ["sample.png"])
+            pool.apply_async(
+                upscale_images,
+                args=(input_file, None, scale, gpus),
+                callback=logging_callback,
+            )
 
-            pool.close()
-            pool.join()
-        except KeyboardInterrupt:
-            pool.terminate()
-            pool.join()
+        pool.close()
+        pool.join()
 
         total = time.time() - start
 

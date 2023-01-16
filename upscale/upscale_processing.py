@@ -16,6 +16,7 @@ import json
 from PIL import Image
 import multiprocessing
 
+
 net = None
 model_input_name = "input"
 model_output_name = "output"
@@ -54,9 +55,13 @@ def init_worker(
     global net, model_input_name, model_output_name
 
     gpu = multiprocessing.current_process()._identity[0] - 1 - workers_used
+
     net = ncnn.Net()
+
     net.opt.use_vulkan_compute = True
+
     net.set_vulkan_device(gpus[gpu])
+
     net.load_param(os.path.join(model_path, str(scale) + model_file + ".param"))
     net.load_model(os.path.join(model_path, str(scale) + model_file) + ".bin")
     model_input_name = model_input
@@ -340,23 +345,19 @@ def process_model(
         ),
     )
 
-    try:
-        for frame in frames:
-            input_file_name = str(frame) + "." + input_file_tag + ".png"
-            output_file_name = str(frame) + "." + output_file_tag + ".png"
+    for frame in frames:
+        input_file_name = str(frame) + "." + input_file_tag + ".png"
+        output_file_name = str(frame) + "." + output_file_tag + ".png"
 
-            if os.path.exists(input_file_name):
-                pool.apply_async(
-                    apply_model,
-                    args=(input_file_name, output_file_name, remove),
-                    callback=logging_callback,
-                )
+        if os.path.exists(input_file_name):
+            pool.apply_async(
+                apply_model,
+                args=(input_file_name, output_file_name, remove),
+                callback=logging_callback,
+            )
 
-        pool.close()
-        pool.join()
-    except KeyboardInterrupt:
-        pool.terminate()
-        pool.join()
+    pool.close()
+    pool.join()
 
 
 def apply_denoise(input_file_name, output_file_name, denoise, remove):
@@ -382,28 +383,24 @@ def process_denoise(frames_count, input_file_tag, denoise, remove=True):
 
     pool = multiprocessing.get_context("spawn").Pool()
 
-    try:
-        for frame in frames:
-            input_file_name = str(frame) + "." + input_file_tag + ".png"
-            output_file_name = str(frame) + ".denoise.png"
+    for frame in frames:
+        input_file_name = str(frame) + "." + input_file_tag + ".png"
+        output_file_name = str(frame) + ".denoise.png"
 
-            if os.path.exists(input_file_name):
-                pool.apply_async(
-                    apply_denoise,
-                    args=(
-                        input_file_name,
-                        output_file_name,
-                        denoise,
-                        remove,
-                    ),
-                    callback=logging_callback,
-                )
+        if os.path.exists(input_file_name):
+            pool.apply_async(
+                apply_denoise,
+                args=(
+                    input_file_name,
+                    output_file_name,
+                    denoise,
+                    remove,
+                ),
+                callback=logging_callback,
+            )
 
-        pool.close()
-        pool.join()
-    except KeyboardInterrupt:
-        pool.terminate()
-        pool.join()
+    pool.close()
+    pool.join()
 
     return pool._processes
 
@@ -584,42 +581,37 @@ def upscale_frames(
         initargs=(gpus, workers_used, model_path, model_file, scale, "input", "output"),
     )
 
-    try:
+    ## upscale frames
+    for frame in frames:
 
-        ## upscale frames
-        for frame in frames:
+        input_file_name = str(frame) + "." + input_file_tag + ".png"
+        output_file_name = str(frame) + ".png"
 
-            input_file_name = str(frame) + "." + input_file_tag + ".png"
-            output_file_name = str(frame) + ".png"
+        if upscale_dir:
+            output_file_name = os.path.join(upscale_dir, output_file_name)
 
-            if upscale_dir:
-                output_file_name = os.path.join(upscale_dir, output_file_name)
+        if os.path.exists(output_file_name):
+            continue
 
-            if os.path.exists(output_file_name):
-                continue
+        if not os.path.exists(input_file_name):
+            continue
 
-            if not os.path.exists(input_file_name):
-                continue
+        pool.apply_async(
+            upscale_image,
+            args=(
+                input_file_name,
+                output_file_name,
+                scale,
+                frame_batch,
+                frame,
+                end_frame,
+                remove,
+            ),
+            callback=logging_callback,
+        )
 
-            pool.apply_async(
-                upscale_image,
-                args=(
-                    input_file_name,
-                    output_file_name,
-                    scale,
-                    frame_batch,
-                    frame,
-                    end_frame,
-                    remove,
-                ),
-                callback=logging_callback,
-            )
-
-        pool.close()
-        pool.join()
-    except KeyboardInterrupt:
-        pool.terminate()
-        pool.join()
+    pool.close()
+    pool.join()
 
 
 def merge_frames(
