@@ -260,7 +260,7 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
-        "-g", "--gpus", help="Optional gpu #s to use. Example 0,1,3. Default is 0."
+        "-g", "--gpus", help="Optional gpus to use. Example 0,1,1,2. Default is 0."
     )
     parser.add_argument(
         "-l", "--log_level", type=int, help="Logging level. logging.INFO is default"
