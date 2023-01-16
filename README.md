@@ -8,10 +8,12 @@ This script will convert a video file using one minute's worth of frames at a ti
 
 # You must have ffmpeg installed and a vulkan compatible GPU
 
-Without a GPU this process would take weeks to process a 2 hour video
+Without a GPU this process would take weeks to process a 2 hour video.
+
 Running test_gpu.py will list out Vulkan compatible GPUs and other info.
 
 Make sure you are passing in a ffmpeg encoder that is compatible with your system.
+
 The default is "av1_qsv" since I'm using an Intel Arc A750 GPU which supports AV1 hardware encoding.
 
 Also make sure you have the latest Mesa drivers installed if on linux (see Notes below).
@@ -34,39 +36,43 @@ git clone https://github.com/davlee1972/upscale_video.git
 
 # Usage
 
-**Step 1** - Calibrate your GPU(s)
+**Step 1 - Calibrate your GPU(s)**
 
 Run python test_gpus.py which will show you what gpus are available.
+
 Run python test_gpus.py -g 0 -s 2 to test gpu 0 running x2 scaling.
+
 Run python test_gpus.py -g 0,0 -s 2 to test gpu 0 using two workers in parallel.
+
 Run python test_gpus.py -g 0,0,0 -s 2 to test gpu 0 using three workers in parallel.
 
-Review timing logs to see how many workers can your GPU support before
-performance starts to degrade.
+Review timing logs to see how many workers can your GPU support before performance starts to degrade.
 
-If you have a second, third, etc. gpu, repeat the process for the other gpus.
+**If you have a second, third, etc. gpu, repeat the process for the other gpus.**
+
 Run python test_gpus.py -g 1 -s 2 to test gpu 1 running x2 scaling.
+
 Run python test_gpus.py -g 1,1 -s 2 to test gpu 1 using two workers in parallel.
+
 Run python test_gpus.py -g 1,1,1 -s 2 to test gpu 1 using three workers in parallel.
 
-Test your final GPU(s) configuration..
+**Test your final GPU(s) configuration..**
 
-Run python test_gpus.py -g 0,0,0,0,1,1 -s 2 to test gpu 0 with 4 workers
-and gpu 1 with 2 workers in parallel.
+Run python test_gpus.py -g 0,0,0,0,1,1 -s 2 to test gpu 0 with 4 workers and gpu 1 with 2 workers in parallel.
 
--g, --gpus can be passed into upscale_video.py. If omitted upscale_video.py
-will just default to -g 0.
+-g, --gpus can be passed into upscale_video.py. If omitted upscale_video.py will just default to -g 0.
 
-**Step 2** - Sample your video upscaling if you want to apply any model filters.
+**Step 2 - Sample your video upscaling if you want to apply any model filters.**
 
 This is a nice to have if you have older videos and want to remove grain, etc..
 
 You can skip this step if you just want to apply AI upscaling only.
 
 Run upscale_video.py with the -x, --extract_only option.
+
 This will stop processing after frames extraction. 
-Run test_images.py on some extracted png files to sample what denoise level (-n, --denoise) to apply
-if needed. (-a, --anime) can also be passed in to apply anime enhancements.
+
+Run test_images.py on some extracted png files to sample what denoise level (-n, --denoise) to apply if needed. (-a, --anime) can also be passed in to apply anime enhancements.
 
 Run upscale_video.py with -r, --resume_processing to continue with upscaling.
 
