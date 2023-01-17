@@ -920,6 +920,8 @@ def process_file(
             model_path,
         )
 
+        workers_used += len(gpus)
+
         merge_frames(
             ffmpeg,
             ffmpeg_encoder,
