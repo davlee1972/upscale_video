@@ -904,6 +904,9 @@ def process_file(
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
+        if os.path.exists(str(frame_batch) + ".mkv"):
+            continue
+
         upscale_frames(
             frame_batch,
             frame_range[0],
