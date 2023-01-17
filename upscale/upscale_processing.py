@@ -590,25 +590,20 @@ def upscale_frames(
         if upscale_dir:
             output_file_name = os.path.join(upscale_dir, output_file_name)
 
-        if os.path.exists(output_file_name):
-            continue
-
-        if not os.path.exists(input_file_name):
-            continue
-
-        pool.apply_async(
-            upscale_image,
-            args=(
-                input_file_name,
-                output_file_name,
-                scale,
-                frame_batch,
-                frame,
-                end_frame,
-                remove,
-            ),
-            callback=logging_callback,
-        )
+        if os.path.exists(input_file_name):
+            pool.apply_async(
+                upscale_image,
+                args=(
+                    input_file_name,
+                    output_file_name,
+                    scale,
+                    frame_batch,
+                    frame,
+                    end_frame,
+                    remove,
+                ),
+                callback=logging_callback,
+            )
 
     pool.close()
     pool.join()
