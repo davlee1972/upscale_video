@@ -15,7 +15,7 @@ import math
 import json
 from PIL import Image
 import multiprocessing
-
+import time
 
 net = None
 model_input_name = "input"
@@ -682,13 +682,15 @@ def merge_frames(
         )
         sys.exit("Error - Exiting")
 
-    logging.info("Batch merged into " + str(frame_batch) + ".mkv")
-    logging.info(str(end_frame) + " total frames upscaled")
+    time.sleep(5)
 
-    ## delete merged png files
     if os.path.exists(str(frame_batch) + ".mkv"):
-        for frame in range(start_frame, end_frame + 1):
-            os.remove(str(frame) + ".png")
+        logging.info("Batch merged into " + str(frame_batch) + ".mkv")
+        logging.info(str(end_frame) + " total frames upscaled")
+
+        ## delete merged png files
+        ##for frame in range(start_frame, end_frame + 1):
+        ##    os.remove(str(frame) + ".png")
     else:
         logging.error("Something went wrong with PNG merging..")
         logging.error(str(frame_batch) + ".mkv not found..")

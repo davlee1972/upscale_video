@@ -16,6 +16,7 @@ from upscale_processing import (
     process_model,
     process_denoise,
     upscale_frames,
+    get_frames,
 )
 
 
@@ -114,11 +115,28 @@ def fix_frames(
 
     bad_frames = get_frames(bad_frames)
 
-    max_frame = 0
+    missing_frames = []
+    missing_test = 1
 
     for frame in bad_frames:
-        if not os.path.exists(str(frame) + ".extract.png") and frame > max_frame:
-            max_frame = frame
+        if not os.path.exists(str(frame) + ".extract.png"):
+            missing_frames.append(frame)
+
+    if anime:
+        missing_test += 1
+        for frame in bad_frames:
+            if not os.path.exists(str(frame) + ".anime.png"):
+                missing_frames.append(frame)
+
+    if denoise:
+        missing_test += 1
+        for frame in bad_frames:
+            if not os.path.exists(str(frame) + ".denoise.png"):
+                missing_frames.append(frame)
+
+    max_frame = {frame: missing_frames.count(frame) for frame in missing_frames if missing_frames.count(frame) == missing_test}.keys()
+    if max_frame:
+        max_frame = max(max_frame)
 
     if max_frame:
         cmds = [
@@ -165,7 +183,7 @@ def fix_frames(
         logging.info("Removing extra extracted frames.")
 
         for frame in range(max_frame):
-            if frame not in bad_frames:
+            if frame + 1 not in bad_frames:
                 os.remove(str(frame + 1) + ".extract.png")
 
     model_path = os.path.realpath(__file__).split(os.sep)
