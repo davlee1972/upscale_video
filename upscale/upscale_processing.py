@@ -734,7 +734,7 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
     ## delete merged mkv files
     if os.path.exists(output_file):
         for i in range(frame_batches):
-            os.remove(str(frame_batches + 1) + ".mkv")
+            os.remove(str(i + 1) + ".mkv")
     else:
         logging.error("Something went wrong with MKV merging..")
         logging.error(output_file + " not found..")
