@@ -142,6 +142,7 @@ def fix_frames(
         cmds = [
             ffmpeg,
             "-hide_banner",
+            "-nostdin",
             "-hwaccel",
             "auto",
             "-i",

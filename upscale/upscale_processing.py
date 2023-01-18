@@ -56,10 +56,13 @@ def init_worker(
 
     gpu = multiprocessing.current_process()._identity[0] - 1 - workers_used
 
+    if gpu > len(gpus) - 1:
+        logging.error("Unable to assign GPU to new worker.")
+        sys.exit("Error - Exiting")
+
     net = ncnn.Net()
 
     net.opt.use_vulkan_compute = True
-
     net.set_vulkan_device(gpus[gpu])
 
     net.load_param(os.path.join(model_path, str(scale) + model_file + ".param"))
@@ -83,6 +86,7 @@ def get_metadata(ffmpeg, input_file):
         cmds = [
             ffmpeg[:-6] + "ffprobe",
             "-hide_banner",
+            "-nostdin",
             "-v",
             "quiet",
             "-show_format",
@@ -621,6 +625,7 @@ def merge_frames(
     cmds = [
         ffmpeg,
         "-hide_banner",
+        "-nostdin",
         "-hwaccel",
         "auto",
         "-r",
@@ -684,8 +689,8 @@ def merge_frames(
         logging.info(str(end_frame) + " total frames upscaled")
 
         ## delete merged png files
-        ##for frame in range(start_frame, end_frame + 1):
-        ##    os.remove(str(frame) + ".png")
+        for frame in range(start_frame, end_frame + 1):
+            os.remove(str(frame) + ".png")
     else:
         logging.error("Something went wrong with PNG merging..")
         logging.error(str(frame_batch) + ".mkv not found..")
@@ -701,6 +706,7 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
     cmds = [
         ffmpeg,
         "-hide_banner",
+        "-nostdin",
         "-f",
         "concat",
         "-safe",
