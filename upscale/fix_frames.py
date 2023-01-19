@@ -134,7 +134,11 @@ def fix_frames(
             if not os.path.exists(str(frame) + ".denoise.png"):
                 missing_frames.append(frame)
 
-    max_frame = {frame: missing_frames.count(frame) for frame in missing_frames if missing_frames.count(frame) == missing_test}.keys()
+    max_frame = {
+        frame: missing_frames.count(frame)
+        for frame in missing_frames
+        if missing_frames.count(frame) == missing_test
+    }.keys()
     if max_frame:
         max_frame = max(max_frame)
 
@@ -142,7 +146,6 @@ def fix_frames(
         cmds = [
             ffmpeg,
             "-hide_banner",
-            "-nostdin",
             "-hwaccel",
             "auto",
             "-i",
