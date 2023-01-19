@@ -110,8 +110,9 @@ def fix_frames(
     info_dict = get_metadata(ffmpeg, input_file)
 
     frame_rate = info_dict["frame_rate"]
+    duration = info_dict["duration"]
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
+    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
     bad_frames = get_frames(bad_frames)
 

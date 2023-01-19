@@ -118,11 +118,12 @@ def upscale_only(
 
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
+    duration = info_dict["duration"]
 
     ## calculate frames per minute
     frames_per_batch = int(frame_rate * 60)
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
+    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
     extract_frames(
         ffmpeg,

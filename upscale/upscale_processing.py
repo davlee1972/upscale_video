@@ -144,53 +144,46 @@ def get_metadata(ffmpeg, input_file):
     return info_dict
 
 
-def get_crop_detect(ffmpeg, input_file, temp_dir):
+def get_crop_detect(ffmpeg, input_file, duration):
     logging.info("Getting crop_detect from " + str(input_file))
 
     if os.path.exists("crop_detect.txt"):
         with open("crop_detect.txt") as f:
             crop = f.read()
     else:
+        interval = int(duration / 102)
+        crop_list = []
 
-        path, file_name = os.path.split(input_file)
-        os.chdir(path)
+        for i in range(100):
+            cmds = [
+                ffmpeg,
+                "-hide_banner",
+                "-ss",
+                str((i + 1) * interval),
+                "-i",
+                input_file,
+                "-frames:v",
+                "2",
+                "-vf",
+                "cropdetect",
+                "-f",
+                "null",
+                "-",
+            ]
+            logging.info(cmds)
+            result = subprocess.run(cmds, capture_output=True, text=True)
+            lines = result.stderr.split("\n")
+            for line in lines:
+                if "crop=" in line:
+                    crop = [
+                        crop for crop in line.split(" ") if crop.startswith("crop=")
+                    ][0].rstrip()
+                    crop_list.append(crop)
 
-        cmds = [
-            ffmpeg[:-6] + "ffprobe",
-            "-hide_banner",
-            "-v",
-            "quiet",
-            "-f",
-            "lavfi",
-            "-i",
-            "movie=" + file_name + ",cropdetect",
-            "-show_entries",
-            "packet_tags=lavfi.cropdetect.w,lavfi.cropdetect.h,lavfi.cropdetect.x,lavfi.cropdetect.y",
-            "-print_format",
-            "json",
-            "-loglevel",
-            "error",
-        ]
-
-        logging.info(cmds)
-
-        result = subprocess.run(cmds, capture_output=True, text=True)
-
-        os.chdir(temp_dir)
-
-        if result.stderr:
-            logging.error("Error with getting crop detect.")
-            logging.error(str(result.stderr))
-            logging.error(str(result.args))
-            sys.exit("Error - Exiting")
-
-        crop_list = json.loads(result.stdout)["packets"]
-        crop_list = [
-            "crop=" + ":".join(row["tags"].values())
-            for row in crop_list
-            if "tags" in row and row["tags"] != {}
-        ]
-        crop = max(set(crop_list), key=crop_list.count)
+        if crop_list:
+            crop = max(set(crop_list), key=crop_list.count)
+        else:
+            crop = ""
 
         with open("crop_detect.txt", "w") as f:
             f.write(crop)
@@ -849,12 +842,13 @@ def process_file(
 
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
+    duration = info_dict["duration"]
 
     ## calculate frames per minute and batches
     frames_per_batch = int(frame_rate * 60) * batch_size
     frame_batches = calc_batches(frames_count, frames_per_batch)
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
+    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
     extract_frames(
         ffmpeg,
