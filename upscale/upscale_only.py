@@ -175,7 +175,7 @@ def upscale_only(
     ## process input file in batches
     upscale_frames(
         None,
-        2,
+        1,
         frames_count,
         input_file_tag,
         scale,
