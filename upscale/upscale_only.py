@@ -102,7 +102,6 @@ def upscale_only(
         os.mkdir(temp_dir)
 
     ## change working directory to temp directory
-    cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
     if os.path.exists("upscaled.txt"):
@@ -187,8 +186,6 @@ def upscale_only(
 
     with open("upscaled.txt", "w") as f:
         f.write("Upscaled")
-
-    os.chdir(cwd_dir)
 
     logging.info("Upscale only finished for " + input_file)
 

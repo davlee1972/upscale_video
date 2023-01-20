@@ -826,7 +826,6 @@ def process_file(
         os.mkdir(temp_dir)
 
     ## change working directory to temp directory
-    cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
     if resume_processing and os.path.exists("completed.txt"):
@@ -931,8 +930,6 @@ def process_file(
 
     with open("completed.txt", "w") as f:
         f.write("Completed")
-
-    os.chdir(cwd_dir)
 
     logging.info("Upscale video finished for " + output_file)
 

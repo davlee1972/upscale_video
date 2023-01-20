@@ -60,7 +60,6 @@ def merge_only(
     temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
 
     ## change working directory to temp directory
-    cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
     if os.path.exists("merged.txt"):
@@ -107,8 +106,6 @@ def merge_only(
 
     with open("merged.txt", "w") as f:
         f.write("Merged")
-
-    os.chdir(cwd_dir)
 
     logging.info("Merge only finished for " + output_file)
 
