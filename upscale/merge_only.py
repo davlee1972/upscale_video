@@ -8,8 +8,10 @@ import logging
 import os
 import tempfile
 import sys
+import zipfile
+import glob
 
-from upscale_processing import get_metadata, merge_frames, merge_mkvs, calc_batches
+from upscale_processing import get_metadata, merge_frames, merge_mkvs
 
 
 def merge_only(
@@ -17,7 +19,6 @@ def merge_only(
     ffmpeg,
     ffmpeg_encoder,
     temp_dir,
-    batch_size,
     log_level,
     log_dir,
 ):
@@ -28,7 +29,6 @@ def merge_only(
     :param ffmpeg:
     :param ffmpeg_encoder:
     :param temp_dir:
-    :param batch_size:
     :param log_level:
     :param log_dir:
     """
@@ -60,7 +60,6 @@ def merge_only(
     temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
 
     ## change working directory to temp directory
-    cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
     if os.path.exists("merged.txt"):
@@ -77,38 +76,60 @@ def merge_only(
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
 
-    ## calculate frames per minute and frame_batches
-    frames_per_batch = int(frame_rate * 60) * batch_size
-    frame_batches = calc_batches(frames_count, frames_per_batch)
+    frame_batch = 1
 
-    for frame_batch, frame_range in frame_batches.items():
+    while True:
 
         if os.path.exists(str(frame_batch) + ".mkv"):
             frame_batch += 1
             continue
 
-        for frame in range(frame_range[0], frame_range[1] + 1):
-            input_file_name = str(frame) + ".png"
-            if not os.path.exists(input_file_name):
-                logging.error(input_file_name + " not found - Exiting")
-                sys.exit()
+        if os.path.exists(str(frame_batch) + ".zip"):
+            logging.info("Extracting png files from " + str(frame_batch) + ".zip")
+            with zipfile.ZipFile(str(frame_batch) + ".zip", "r") as zObject:
+                try:
+                    zObject.extractall()
+                except Exception as e:
+                    logging.error("Zipfile extract failed")
+                    logging.error(e)
+                    sys.exit("Error - Exiting")
+
+            os.remove(str(frame_batch) + ".zip")
+
+        png_files = glob.glob("*.png")
+        png_files = [int(file_name.split(".")[0]) for file_name in png_files]
+
+        if png_files:
+            starting_frame = min(png_files)
+            last_frame = max(png_files)
+        else:
+            logging.error("No more png files found - Exiting")
+            sys.exit()
+
+        if last_frame - starting_frame + 1 != len(png_files):
+            logging.error("Frame counts mismatch - Exiting")
+            logging.error(str(last_frame - starting_frame + 1) + " vs " + str(len(png_files)) + " found.")
+            sys.exit()
 
         merge_frames(
             ffmpeg,
             ffmpeg_encoder,
             frame_batch,
-            frame_range[0],
-            frame_range[1],
+            starting_frame,
+            last_frame,
             frame_rate,
         )
+
+        if last_frame == frames_count:
+            break
+
+        frame_batch += 1
 
     ## merge video files into a single video file
     merge_mkvs(ffmpeg, frame_batch, output_file, log_dir)
 
     with open("merged.txt", "w") as f:
         f.write("Merged")
-
-    os.chdir(cwd_dir)
 
     logging.info("Merge only finished for " + output_file)
 
@@ -134,13 +155,6 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
-        "-b",
-        "--batch_size",
-        type=int,
-        default=1,
-        help="Number of minutes to upscale per batch. Default is 1.",
-    )
-    parser.add_argument(
         "-l", "--log_level", type=int, help="Logging level. logging.INFO is default"
     )
     parser.add_argument("-d", "--log_dir", help="Logging directory. logging directory")
@@ -152,7 +166,6 @@ if __name__ == "__main__":
         args.ffmpeg,
         args.ffmpeg_encoder,
         args.temp_dir,
-        args.batch_size,
         args.log_level,
         args.log_dir,
     )

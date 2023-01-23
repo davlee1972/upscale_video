@@ -56,10 +56,13 @@ def init_worker(
 
     gpu = multiprocessing.current_process()._identity[0] - 1 - workers_used
 
+    if gpu > len(gpus) - 1:
+        logging.error("Unable to assign GPU to new worker.")
+        sys.exit("Error - Exiting")
+
     net = ncnn.Net()
 
     net.opt.use_vulkan_compute = True
-
     net.set_vulkan_device(gpus[gpu])
 
     net.load_param(os.path.join(model_path, str(scale) + model_file + ".param"))
@@ -141,53 +144,46 @@ def get_metadata(ffmpeg, input_file):
     return info_dict
 
 
-def get_crop_detect(ffmpeg, input_file, temp_dir):
+def get_crop_detect(ffmpeg, input_file, duration):
     logging.info("Getting crop_detect from " + str(input_file))
 
     if os.path.exists("crop_detect.txt"):
         with open("crop_detect.txt") as f:
             crop = f.read()
     else:
+        interval = int(duration / 102)
+        crop_list = []
 
-        path, file_name = os.path.split(input_file)
-        os.chdir(path)
+        for i in range(100):
+            cmds = [
+                ffmpeg,
+                "-hide_banner",
+                "-ss",
+                str((i + 1) * interval),
+                "-i",
+                input_file,
+                "-frames:v",
+                "2",
+                "-vf",
+                "cropdetect",
+                "-f",
+                "null",
+                "-",
+            ]
+            logging.info(cmds)
+            result = subprocess.run(cmds, capture_output=True, text=True)
+            lines = result.stderr.split("\n")
+            for line in lines:
+                if "crop=" in line:
+                    crop = [
+                        crop for crop in line.split(" ") if crop.startswith("crop=")
+                    ][0].rstrip()
+                    crop_list.append(crop)
 
-        cmds = [
-            ffmpeg[:-6] + "ffprobe",
-            "-hide_banner",
-            "-v",
-            "quiet",
-            "-f",
-            "lavfi",
-            "-i",
-            "movie=" + file_name + ",cropdetect",
-            "-show_entries",
-            "packet_tags=lavfi.cropdetect.w,lavfi.cropdetect.h,lavfi.cropdetect.x,lavfi.cropdetect.y",
-            "-print_format",
-            "json",
-            "-loglevel",
-            "error",
-        ]
-
-        logging.info(cmds)
-
-        result = subprocess.run(cmds, capture_output=True, text=True)
-
-        os.chdir(temp_dir)
-
-        if result.stderr:
-            logging.error("Error with getting crop detect.")
-            logging.error(str(result.stderr))
-            logging.error(str(result.args))
-            sys.exit("Error - Exiting")
-
-        crop_list = json.loads(result.stdout)["packets"]
-        crop_list = [
-            "crop=" + ":".join(row["tags"].values())
-            for row in crop_list
-            if "tags" in row and row["tags"] != {}
-        ]
-        crop = max(set(crop_list), key=crop_list.count)
+        if crop_list:
+            crop = max(set(crop_list), key=crop_list.count)
+        else:
+            crop = ""
 
         with open("crop_detect.txt", "w") as f:
             f.write(crop)
@@ -564,7 +560,6 @@ def upscale_frames(
     gpus,
     workers_used,
     model_path,
-    upscale_dir=None,
     remove=True,
 ):
 
@@ -586,9 +581,6 @@ def upscale_frames(
 
         input_file_name = str(frame) + "." + input_file_tag + ".png"
         output_file_name = str(frame) + ".png"
-
-        if upscale_dir:
-            output_file_name = os.path.join(upscale_dir, output_file_name)
 
         if os.path.exists(input_file_name):
             pool.apply_async(
@@ -681,11 +673,11 @@ def merge_frames(
 
     if os.path.exists(str(frame_batch) + ".mkv"):
         logging.info("Batch merged into " + str(frame_batch) + ".mkv")
-        logging.info(str(end_frame) + " total frames upscaled")
+        logging.info(str(end_frame) + " total frames merged")
 
         ## delete merged png files
-        ##for frame in range(start_frame, end_frame + 1):
-        ##    os.remove(str(frame) + ".png")
+        for frame in range(start_frame, end_frame + 1):
+            os.remove(str(frame) + ".png")
     else:
         logging.error("Something went wrong with PNG merging..")
         logging.error(str(frame_batch) + ".mkv not found..")
@@ -728,7 +720,7 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
     ## delete merged mkv files
     if os.path.exists(output_file):
         for i in range(frame_batches):
-            os.remove(str(frame_batches + 1) + ".mkv")
+            os.remove(str(i + 1) + ".mkv")
     else:
         logging.error("Something went wrong with MKV merging..")
         logging.error(output_file + " not found..")
@@ -830,7 +822,6 @@ def process_file(
         os.mkdir(temp_dir)
 
     ## change working directory to temp directory
-    cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
     if resume_processing and os.path.exists("completed.txt"):
@@ -846,12 +837,13 @@ def process_file(
 
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
+    duration = info_dict["duration"]
 
     ## calculate frames per minute and batches
     frames_per_batch = int(frame_rate * 60) * batch_size
     frame_batches = calc_batches(frames_count, frames_per_batch)
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
+    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
     extract_frames(
         ffmpeg,
@@ -934,8 +926,6 @@ def process_file(
 
     with open("completed.txt", "w") as f:
         f.write("Completed")
-
-    os.chdir(cwd_dir)
 
     logging.info("Upscale video finished for " + output_file)
 

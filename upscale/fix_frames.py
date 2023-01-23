@@ -110,8 +110,9 @@ def fix_frames(
     info_dict = get_metadata(ffmpeg, input_file)
 
     frame_rate = info_dict["frame_rate"]
+    duration = info_dict["duration"]
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, temp_dir)
+    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
     bad_frames = get_frames(bad_frames)
 
@@ -134,7 +135,11 @@ def fix_frames(
             if not os.path.exists(str(frame) + ".denoise.png"):
                 missing_frames.append(frame)
 
-    max_frame = {frame: missing_frames.count(frame) for frame in missing_frames if missing_frames.count(frame) == missing_test}.keys()
+    max_frame = {
+        frame: missing_frames.count(frame)
+        for frame in missing_frames
+        if missing_frames.count(frame) == missing_test
+    }.keys()
     if max_frame:
         max_frame = max(max_frame)
 
@@ -184,7 +189,10 @@ def fix_frames(
 
         for frame in range(max_frame):
             if frame + 1 not in bad_frames:
-                os.remove(str(frame + 1) + ".extract.png")
+                try:
+                    os.remove(str(frame + 1) + ".extract.png")
+                except:
+                    pass
 
     model_path = os.path.realpath(__file__).split(os.sep)
     model_path = os.sep.join(model_path[:-2] + ["models"])
