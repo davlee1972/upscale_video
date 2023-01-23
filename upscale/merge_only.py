@@ -86,7 +86,14 @@ def merge_only(
 
         if os.path.exists(str(frame_batch) + ".zip"):
             with ZipFile(str(frame_batch) + ".zip", "r") as zObject:
-                zObject.extractall()
+                try:
+                    zObject.extractall()
+                except Exception as e:
+                    logging.error("Zipfile extract failed")
+                    logging.error(e)
+                    sys.exit("Error - Exiting")
+
+            os.remove(str(frame_batch) + ".zip"):
 
         png_files = glob.glob("*.png")
         png_files = [int(file_name.split(".")[0]) for file_name in png_files]
