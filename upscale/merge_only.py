@@ -85,7 +85,8 @@ def merge_only(
             continue
 
         if os.path.exists(str(frame_batch) + ".zip"):
-            with ZipFile(str(frame_batch) + ".zip", "r") as zObject:
+            logging.info("Extracting png files from " + str(frame_batch) + ".zip")
+            with zipfile.ZipFile(str(frame_batch) + ".zip", "r") as zObject:
                 try:
                     zObject.extractall()
                 except Exception as e:
@@ -93,7 +94,7 @@ def merge_only(
                     logging.error(e)
                     sys.exit("Error - Exiting")
 
-            os.remove(str(frame_batch) + ".zip"):
+            os.remove(str(frame_batch) + ".zip")
 
         png_files = glob.glob("*.png")
         png_files = [int(file_name.split(".")[0]) for file_name in png_files]
@@ -107,6 +108,7 @@ def merge_only(
 
         if last_frame - starting_frame + 1 != len(png_files):
             logging.error("Frame counts mismatch - Exiting")
+            logging.error(str(last_frame - starting_frame + 1) + " vs " + str(len(png_files)) + " found.")
             sys.exit()
 
         merge_frames(
@@ -118,7 +120,7 @@ def merge_only(
             frame_rate,
         )
 
-        if last_frame == frame_count:
+        if last_frame == frames_count:
             break
 
         frame_batch += 1

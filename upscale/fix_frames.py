@@ -189,7 +189,10 @@ def fix_frames(
 
         for frame in range(max_frame):
             if frame + 1 not in bad_frames:
-                os.remove(str(frame + 1) + ".extract.png")
+                try:
+                    os.remove(str(frame + 1) + ".extract.png")
+                except:
+                    pass
 
     model_path = os.path.realpath(__file__).split(os.sep)
     model_path = os.sep.join(model_path[:-2] + ["models"])
