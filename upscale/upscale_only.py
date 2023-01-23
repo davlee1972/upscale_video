@@ -177,16 +177,6 @@ def upscale_only(
 
     logging.info("Starting upscale processing...")
 
-    if upscale_dir:
-        shutil.copyfile(
-            os.path.join(temp_dir, "metadata.json"),
-            os.path.join(upscale_dir, "metadata.json"),
-        )
-        shutil.copyfile(
-            os.path.join(temp_dir, "crop_detect.txt"),
-            os.path.join(upscale_dir, "crop_detect.txt"),
-        )
-
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
