@@ -7,12 +7,15 @@ import argparse
 import logging
 import os
 import tempfile
+import subprocess
 import sys
+import zipfile
 
 
 from upscale_processing import (
     get_metadata,
     get_crop_detect,
+    calc_batches,
     extract_frames,
     process_model,
     process_denoise,
@@ -25,6 +28,7 @@ def upscale_only(
     ffmpeg,
     scale,
     temp_dir,
+    batch_size,
     gpus,
     upscale_dir,
     extract_only,
@@ -40,6 +44,7 @@ def upscale_only(
     :param ffmpeg:
     :param scale:
     :param temp_dir:
+    :param batch_size:
     :param gpus:
     :param extract_only:
     :param anime:
@@ -120,7 +125,8 @@ def upscale_only(
     duration = info_dict["duration"]
 
     ## calculate frames per minute
-    frames_per_batch = int(frame_rate * 60)
+    frames_per_batch = int(frame_rate * 60) * batch_size
+    frame_batches = calc_batches(frames_count, frames_per_batch)
 
     crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
@@ -171,18 +177,54 @@ def upscale_only(
 
     logging.info("Starting upscale processing...")
 
+    if upscale_dir:
+        shutil.copyfile(
+            os.path.join(temp_dir, "metadata.json"),
+            os.path.join(upscale_dir, "metadata.json"),
+        )
+        shutil.copyfile(
+            os.path.join(temp_dir, "crop_detect.txt"),
+            os.path.join(upscale_dir, "crop_detect.txt"),
+        )
+
     ## process input file in batches
-    upscale_frames(
-        None,
-        1,
-        frames_count,
-        input_file_tag,
-        scale,
-        gpus,
-        workers_used,
-        model_path,
-        upscale_dir,
-    )
+    for frame_batch, frame_range in frame_batches.items():
+
+        if os.path.exists(str(frame_batch) + ".mkv"):
+            continue
+
+        if upscale_dir:
+            if os.path.exists(os.path.join(upscale_dir, str(frame_batch) + ".zip")):
+                continue
+        else:
+            if os.path.exists(str(frame_batch) + ".zip"):
+                continue
+
+        upscale_frames(
+            frame_batch,
+            frame_range[0],
+            frame_range[1],
+            input_file_tag,
+            scale,
+            gpus,
+            workers_used,
+            model_path,
+        )
+
+        workers_used += len(gpus)
+
+        for frame in range(frame_range[0], frame_range[1] + 1):
+            if upscale_dir:
+                with zipfile.ZipFile(
+                    os.path.join(upscale_dir, str(frame_batch) + ".zip"), "w"
+                ) as zip:
+                    zip.write(str(frame) + ".png")
+            else:
+                with zipfile.ZipFile(str(frame_batch + ".zip"), "w") as zip:
+                    zip.write(str(frame) + ".png")
+
+        for frame in range(frame_range[0], frame_range[1] + 1):
+            os.remove(str(frame) + ".png")
 
     with open("upscaled.txt", "w") as f:
         f.write("Upscaled")
@@ -215,6 +257,13 @@ if __name__ == "__main__":
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
     )
     parser.add_argument(
+        "-b",
+        "--batch_size",
+        type=int,
+        default=10,
+        help="Number of minutes to upscale per batch. Default is 10.",
+    )
+    parser.add_argument(
         "-g", "--gpus", help="Optional gpus to use. Example 0,1,1,2. Default is 0."
     )
     parser.add_argument(
@@ -238,6 +287,7 @@ if __name__ == "__main__":
         args.ffmpeg,
         args.scale,
         args.temp_dir,
+        args.batch_size,
         args.gpus,
         args.upscale_dir,
         args.extract_only,

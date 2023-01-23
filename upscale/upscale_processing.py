@@ -560,7 +560,6 @@ def upscale_frames(
     gpus,
     workers_used,
     model_path,
-    upscale_dir=None,
     remove=True,
 ):
 
@@ -582,9 +581,6 @@ def upscale_frames(
 
         input_file_name = str(frame) + "." + input_file_tag + ".png"
         output_file_name = str(frame) + ".png"
-
-        if upscale_dir:
-            output_file_name = os.path.join(upscale_dir, output_file_name)
 
         if os.path.exists(input_file_name):
             pool.apply_async(
@@ -677,7 +673,7 @@ def merge_frames(
 
     if os.path.exists(str(frame_batch) + ".mkv"):
         logging.info("Batch merged into " + str(frame_batch) + ".mkv")
-        logging.info(str(end_frame) + " total frames upscaled")
+        logging.info(str(end_frame) + " total frames merged")
 
         ## delete merged png files
         for frame in range(start_frame, end_frame + 1):
