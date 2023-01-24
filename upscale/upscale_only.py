@@ -203,29 +203,23 @@ def upscale_only(
 
         workers_used += len(gpus)
 
-        for frame in range(frame_range[0], frame_range[1] + 1):
-            try:
-                if upscale_dir:
-                    with zipfile.ZipFile(
-                        os.path.join(upscale_dir, str(frame_batch) + ".zip"),
-                        "w",
-                        compression=zipfile.ZIP_DEFLATED,
-                        compresslevel=0,
-                    ) as zip:
-                        zip.write(str(frame) + ".png")
-                else:
-                    with zipfile.ZipFile(
-                        str(frame_batch + ".zip"),
-                        "w",
-                        compression=zipfile.ZIP_DEFLATED,
-                        compresslevel=0,
-                    ) as zip:
-                        zip.write(str(frame) + ".png")
-            except Exception as e:
-                logging.error("Zipfile creation failed")
-                logging.error(e)
-                sys.exit("Error - Exiting")
+        zipfile_name = str(frame_batch) + ".zip"
+        if upscale_dir:        
+            zipfile_name = os.path.join(upscale_dir, zipfile_name)
 
+        try:
+            with zipfile.ZipFile(
+                zipfile_name,
+                "w",
+                compression=zipfile.ZIP_DEFLATED,
+                compresslevel=0,
+            ) as zip:
+                for frame in range(frame_range[0], frame_range[1] + 1):
+                    zip.write(str(frame) + ".png")
+        except Exception as e:
+            logging.error("Zipfile creation failed")
+            logging.error(e)
+            sys.exit("Error - Exiting")
 
         for frame in range(frame_range[0], frame_range[1] + 1):
             os.remove(str(frame) + ".png")
