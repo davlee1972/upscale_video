@@ -39,10 +39,10 @@ def process_image(
     else:
         models = []
 
-    if 'r' in models:
+    if "r" in models:
         scale = 4
 
-    denoise = [model.split('=') for model in models if model.startswith('n=')]
+    denoise = [model.split("=") for model in models if model.startswith("n=")]
 
     if denoise:
         denoise = int(denoise[0][1])
@@ -81,10 +81,12 @@ def process_image(
 
     if denoise:
         logging.info("Starting denoise touchup...")
-        workers_used += process_denoise(input_frames, input_file_tag, denoise, remove=False)
+        workers_used += process_denoise(
+            input_frames, input_file_tag, denoise, remove=False
+        )
         input_file_tag = "denoise"
 
-    if 'a' in models:
+    if "a" in models:
         logging.info("Starting anime touchup...")
 
         model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
@@ -115,7 +117,7 @@ def process_image(
         except:
             pass
 
-    if 'r' in models:
+    if "r" in models:
         model_file = "x_Valar_v1"
         model_input = "input"
         model_output = "output"
@@ -163,7 +165,11 @@ if __name__ == "__main__":
         help="Output directory where test images will be saved",
     )
     parser.add_argument(
-        "-s", "--scale", type=int, default=2, help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
+        "-s",
+        "--scale",
+        type=int,
+        default=2,
+        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
     )
     parser.add_argument(
         "-m",

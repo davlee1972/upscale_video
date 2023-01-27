@@ -29,7 +29,11 @@ if __name__ == "__main__":
         help="Adds additional processing. 'a' for anime videos, 'n={denoise level}' for noise reduction and 'r' for real life imaging. Example: -m a,n=3,r to use all three options.",
     )
     parser.add_argument(
-        "-s", "--scale", type=int, default=2, help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
+        "-s",
+        "--scale",
+        type=int,
+        default=2,
+        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
     )
     parser.add_argument(
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
