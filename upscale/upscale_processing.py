@@ -560,6 +560,9 @@ def upscale_frames(
     gpus,
     workers_used,
     model_path,
+    model_file,
+    model_input,
+    model_output,
     remove=True,
 ):
 
@@ -568,12 +571,18 @@ def upscale_frames(
     else:
         frames = range(start_frame, end_frame + 1)
 
-    model_file = "x_Compact_Pretrain"
-
     pool = multiprocessing.get_context("spawn").Pool(
         processes=len(gpus),
         initializer=init_worker,
-        initargs=(gpus, workers_used, model_path, model_file, scale, "input", "output"),
+        initargs=(
+            gpus,
+            workers_used,
+            model_path,
+            model_file,
+            scale,
+            model_input,
+            model_output,
+        ),
     )
 
     ## upscale frames
@@ -738,8 +747,7 @@ def process_file(
     gpus,
     resume_processing,
     extract_only,
-    anime,
-    denoise,
+    models,
     log_level,
     log_dir,
 ):
@@ -756,8 +764,7 @@ def process_file(
     :param gpus:
     :param resume_processing:
     :param extract_only:
-    :param anime:
-    :param denoise:
+    :param models:
     :param log_level:
     :param log_dir:
     """
@@ -767,6 +774,23 @@ def process_file(
 
     if not os.path.exists(input_file):
         sys.exit(input_file + " not found")
+
+    if models:
+        models = models.split(",")
+    else:
+        models = []
+
+    if "r" in models:
+        scale = 4
+
+    denoise = [model.split("=") for model in models if model.startswith("n=")]
+
+    if denoise:
+        denoise = int(denoise[0][1])
+        if denoise > 30:
+            denoise = 30
+        if denoise <= 0:
+            denoise = None
 
     if not log_level:
         log_level = logging.INFO
@@ -798,16 +822,9 @@ def process_file(
 
     if not output_file:
         output_file = input_file.split(".")
-        output_file_ext = output_file[-1]
-        output_file = ".".join(output_file[:-1] + [str(scale) + "x", output_file_ext])
+        output_file = ".".join(output_file[:-1] + [str(scale) + "x", "mkv"])
 
     logging.info("Processing File: " + input_file)
-
-    if denoise:
-        if denoise > 30:
-            denoise = 30
-        if denoise <= 0:
-            denoise = None
 
     ## Create temp directory
     if not temp_dir:
@@ -863,12 +880,10 @@ def process_file(
 
     if denoise:
         logging.info("Starting denoise touchup...")
-
         workers_used += process_denoise(frames_count, input_file_tag, denoise)
-
         input_file_tag = "denoise"
 
-    if anime:
+    if "a" in models:
         logging.info("Starting anime touchup...")
 
         model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
@@ -893,6 +908,15 @@ def process_file(
 
     logging.info("Starting upscale processing...")
 
+    if "r" in models:
+        model_file = "x_Valar_v1"
+        model_input = "input"
+        model_output = "output"
+    else:
+        model_file = "x_Compact_Pretrain"
+        model_input = "input"
+        model_output = "output"
+
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
@@ -908,6 +932,9 @@ def process_file(
             gpus,
             workers_used,
             model_path,
+            model_file,
+            model_input,
+            model_output,
         )
 
         workers_used += len(gpus)

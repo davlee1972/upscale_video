@@ -108,7 +108,12 @@ def merge_only(
 
         if last_frame - starting_frame + 1 != len(png_files):
             logging.error("Frame counts mismatch - Exiting")
-            logging.error(str(last_frame - starting_frame + 1) + " vs " + str(len(png_files)) + " found.")
+            logging.error(
+                str(last_frame - starting_frame + 1)
+                + " vs "
+                + str(len(png_files))
+                + " found."
+            )
             sys.exit()
 
         merge_frames(

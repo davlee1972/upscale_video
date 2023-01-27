@@ -32,8 +32,7 @@ def upscale_only(
     gpus,
     upscale_dir,
     extract_only,
-    anime,
-    denoise,
+    models,
     log_level,
     log_dir,
 ):
@@ -47,8 +46,7 @@ def upscale_only(
     :param batch_size:
     :param gpus:
     :param extract_only:
-    :param anime:
-    :param denoise:
+    :param models:
     :param log_level:
     :param log_dir:
     """
@@ -61,6 +59,23 @@ def upscale_only(
 
     if upscale_dir and not os.path.exists(upscale_dir):
         sys.exit(upscale_dir + " is not not valid")
+
+    if models:
+        models = models.split(",")
+    else:
+        models = []
+
+    if "r" in models:
+        scale = 4
+
+    denoise = [model.split("=") for model in models if model.startswith("n=")]
+
+    if denoise:
+        denoise = int(denoise[0][1])
+        if denoise > 30:
+            denoise = 30
+        if denoise <= 0:
+            denoise = None
 
     if not log_level:
         log_level = logging.INFO
@@ -91,12 +106,6 @@ def upscale_only(
         gpus = [0]
 
     logging.info("Processing File: " + input_file)
-
-    if denoise:
-        if denoise > 30:
-            denoise = 30
-        if denoise <= 0:
-            denoise = None
 
     ## Create temp directory
     if not temp_dir:
@@ -148,12 +157,10 @@ def upscale_only(
 
     if denoise:
         logging.info("Starting denoise touchup...")
-
         workers_used += process_denoise(frames_count, input_file_tag, denoise)
-
         input_file_tag = "denoise"
 
-    if anime:
+    if "a" in models:
         logging.info("Starting anime touchup...")
 
         model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
@@ -177,6 +184,15 @@ def upscale_only(
 
     logging.info("Starting upscale processing...")
 
+    if "r" in models:
+        model_file = "x_Valar_v1"
+        model_input = "input"
+        model_output = "output"
+    else:
+        model_file = "x_Compact_Pretrain"
+        model_input = "input"
+        model_output = "output"
+
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
@@ -199,13 +215,18 @@ def upscale_only(
             gpus,
             workers_used,
             model_path,
+            model_file,
+            model_input,
+            model_output,
         )
 
         workers_used += len(gpus)
 
         zipfile_name = str(frame_batch) + ".zip"
-        if upscale_dir:        
+        if upscale_dir:
             zipfile_name = os.path.join(upscale_dir, zipfile_name)
+
+        logging.info("Zipping png files into " + zipfile_name)
 
         try:
             with zipfile.ZipFile(
@@ -237,19 +258,16 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--input_file", required=True, help="Input file.")
     parser.add_argument("-f", "--ffmpeg", required=True, help="Location of ffmpeg.")
     parser.add_argument(
-        "-a",
-        "--anime",
-        action="store_true",
-        help="Adds additional processing for anime videos to remove grain and smooth color.",
+        "-m",
+        "--models",
+        help="Adds additional processing. 'a' for anime videos, 'n={denoise level}' for noise reduction and 'r' for real life imaging. Example: -m a,n=3,r to use all three options.",
     )
     parser.add_argument(
-        "-n",
-        "--denoise",
+        "-s",
+        "--scale",
         type=int,
-        help="Adds additional processing to remove film grain. Denoise level 1 to 30. 3 = light / 10 = heavy.",
-    )
-    parser.add_argument(
-        "-s", "--scale", type=int, default=2, help="Scale 2 or 4. Default is 2."
+        default=2,
+        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
     )
     parser.add_argument(
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."
@@ -289,8 +307,7 @@ if __name__ == "__main__":
         args.gpus,
         args.upscale_dir,
         args.extract_only,
-        args.anime,
-        args.denoise,
+        args.models,
         args.log_level,
         args.log_dir,
     )

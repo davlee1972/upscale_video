@@ -27,8 +27,7 @@ def fix_frames(
     scale,
     temp_dir,
     gpus,
-    anime,
-    denoise,
+    models,
     log_level,
     log_dir,
 ):
@@ -41,8 +40,7 @@ def fix_frames(
     :param scale:
     :param temp_dir:
     :param gpus:
-    :param anime:
-    :param denoise:
+    :param models:
     :param log_level:
     :param log_dir:
     """
@@ -52,6 +50,23 @@ def fix_frames(
 
     if not os.path.exists(input_file):
         sys.exit(input_file + " not found")
+
+    if models:
+        models = models.split(",")
+    else:
+        models = []
+
+    if "r" in models:
+        scale = 4
+
+    denoise = [model.split("=") for model in models if model.startswith("n=")]
+
+    if denoise:
+        denoise = int(denoise[0][1])
+        if denoise > 30:
+            denoise = 30
+        if denoise <= 0:
+            denoise = None
 
     if not log_level:
         log_level = logging.INFO
@@ -82,12 +97,6 @@ def fix_frames(
         gpus = [0]
 
     logging.info("Processing File: " + input_file)
-
-    if denoise:
-        if denoise > 30:
-            denoise = 30
-        if denoise <= 0:
-            denoise = None
 
     ## Create temp directory
     if not temp_dir:
@@ -129,7 +138,7 @@ def fix_frames(
             if not os.path.exists(str(frame) + ".denoise.png"):
                 missing_frames.append(frame)
 
-    if anime:
+    if "a" in models:
         missing_test += 1
         for frame in bad_frames:
             if not os.path.exists(str(frame) + ".anime.png"):
@@ -200,7 +209,12 @@ def fix_frames(
     workers_used = 0
     input_file_tag = "extract"
 
-    if anime:
+    if denoise:
+        logging.info("Starting denoise touchup...")
+        workers_used += process_denoise(bad_frames, input_file_tag, denoise)
+        input_file_tag = "denoise"
+
+    if "a" in models:
         logging.info("Starting anime touchup...")
 
         model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
@@ -222,13 +236,6 @@ def fix_frames(
         workers_used += len(gpus)
         input_file_tag = "anime"
 
-    if denoise:
-        logging.info("Starting denoise touchup...")
-
-        workers_used += process_denoise(bad_frames, input_file_tag, denoise)
-
-        input_file_tag = "denoise"
-
     logging.info("Starting upscale processing...")
 
     for frame in bad_frames:
@@ -236,6 +243,15 @@ def fix_frames(
             os.remove(str(frame) + ".png")
         except:
             pass
+
+    if "r" in models:
+        model_file = "x_Valar_v1"
+        model_input = "input"
+        model_output = "output"
+    else:
+        model_file = "x_Compact_Pretrain"
+        model_input = "input"
+        model_output = "output"
 
     upscale_frames(
         bad_frames,
@@ -246,6 +262,9 @@ def fix_frames(
         gpus,
         workers_used,
         model_path,
+        model_file,
+        model_input,
+        model_output,
     )
 
     logging.info("Upscaled frame " + str(frame))
@@ -268,16 +287,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("-f", "--ffmpeg", required=True, help="Location of ffmpeg.")
     parser.add_argument(
-        "-a",
-        "--anime",
-        action="store_true",
-        help="Adds additional processing for anime videos to remove grain and smooth color.",
-    )
-    parser.add_argument(
-        "-n",
-        "--denoise",
-        type=int,
-        help="Adds additional processing to remove film grain. Denoise level 1 to 30. 3 = light / 10 = heavy.",
+        "-m",
+        "--models",
+        help="Adds additional processing. 'a' for anime videos, 'n={denoise level}' for noise reduction and 'r' for real life imaging. Example: -m a,n=3,r to use all three options.",
     )
     parser.add_argument(
         "-s", "--scale", type=int, default=2, help="Scale 2 or 4. Default is 2."
@@ -302,8 +314,7 @@ if __name__ == "__main__":
         args.scale,
         args.temp_dir,
         args.gpus,
-        args.anime,
-        args.denoise,
+        args.models,
         args.log_level,
         args.log_dir,
     )

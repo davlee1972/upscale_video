@@ -24,16 +24,9 @@ if __name__ == "__main__":
         help="ffmpeg encoder for mkv file. Default is av1_qsv.",
     )
     parser.add_argument(
-        "-a",
-        "--anime",
-        action="store_true",
-        help="Adds processing for anime to remove grain and color bleeding.",
-    )
-    parser.add_argument(
-        "-n",
-        "--denoise",
-        type=int,
-        help="Adds processing to remove film grain. Denoise level 1 to 30. 3 = light / 10 = heavy, etc..",
+        "-m",
+        "--models",
+        help="Adds additional processing. 'a' for anime videos, 'n={denoise level}' for noise reduction and 'r' for real life imaging. Example: -m a,n=3,r to use all three options.",
     )
     parser.add_argument(
         "-s", "--scale", type=int, default=2, help="Scale 2 or 4. Default is 2."
@@ -81,8 +74,7 @@ if __name__ == "__main__":
         args.gpus,
         args.resume_processing,
         args.extract_only,
-        args.anime,
-        args.denoise,
+        args.models,
         args.log_level,
         args.log_dir,
     )
