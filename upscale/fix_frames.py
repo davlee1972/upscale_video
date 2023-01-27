@@ -123,16 +123,16 @@ def fix_frames(
         if not os.path.exists(str(frame) + ".extract.png"):
             missing_frames.append(frame)
 
-    if anime:
-        missing_test += 1
-        for frame in bad_frames:
-            if not os.path.exists(str(frame) + ".anime.png"):
-                missing_frames.append(frame)
-
     if denoise:
         missing_test += 1
         for frame in bad_frames:
             if not os.path.exists(str(frame) + ".denoise.png"):
+                missing_frames.append(frame)
+
+    if anime:
+        missing_test += 1
+        for frame in bad_frames:
+            if not os.path.exists(str(frame) + ".anime.png"):
                 missing_frames.append(frame)
 
     max_frame = {

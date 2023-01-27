@@ -70,6 +70,15 @@ def process_image(
     workers_used = 0
     input_file_tag = "extract"
 
+    if denoise:
+        logging.info("Starting denoise touchup...")
+
+        workers_used += process_denoise(
+            input_frames, input_file_tag, denoise, remove=False
+        )
+
+        input_file_tag = "denoise"
+
     if anime:
         logging.info("Starting anime touchup...")
 
@@ -92,15 +101,6 @@ def process_image(
 
         workers_used += len(gpus)
         input_file_tag = "anime"
-
-    if denoise:
-        logging.info("Starting denoise touchup...")
-
-        workers_used += process_denoise(
-            input_frames, input_file_tag, denoise, remove=False
-        )
-
-        input_file_tag = "denoise"
 
     logging.info("Starting upscale processing...")
 

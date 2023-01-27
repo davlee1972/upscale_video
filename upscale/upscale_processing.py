@@ -861,6 +861,13 @@ def process_file(
     workers_used = 0
     input_file_tag = "extract"
 
+    if denoise:
+        logging.info("Starting denoise touchup...")
+
+        workers_used += process_denoise(frames_count, input_file_tag, denoise)
+
+        input_file_tag = "denoise"
+
     if anime:
         logging.info("Starting anime touchup...")
 
@@ -883,13 +890,6 @@ def process_file(
 
         workers_used += len(gpus)
         input_file_tag = "anime"
-
-    if denoise:
-        logging.info("Starting denoise touchup...")
-
-        workers_used += process_denoise(frames_count, input_file_tag, denoise)
-
-        input_file_tag = "denoise"
 
     logging.info("Starting upscale processing...")
 
