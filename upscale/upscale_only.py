@@ -10,6 +10,7 @@ import tempfile
 import subprocess
 import sys
 import zipfile
+import shutil
 
 
 from upscale_processing import (
@@ -181,6 +182,10 @@ def upscale_only(
 
         workers_used += len(gpus)
         input_file_tag = "anime"
+
+    if upscale_dir:
+        shutil.copyfile("metadata.json", os.path.join(upscale_dir, "metadata.json"))
+        shutil.copyfile("crop_detect.txt", os.path.join(upscale_dir, "crop_detect.txt"))
 
     logging.info("Starting upscale processing...")
 
