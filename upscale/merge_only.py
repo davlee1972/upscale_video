@@ -11,7 +11,7 @@ import sys
 import zipfile
 import glob
 
-from upscale_processing import get_metadata, merge_frames, merge_mkvs
+from upscale_processing import get_metadata, merge_frames, merge_files
 
 
 def merge_only(
@@ -64,6 +64,8 @@ def merge_only(
 
     if os.path.exists("merged.txt"):
         sys.exit(output_file + "already processed - Exiting")
+
+    output_format = output_file.split(".")[-1]
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake
@@ -123,6 +125,7 @@ def merge_only(
             starting_frame,
             last_frame,
             frame_rate,
+            output_format,
         )
 
         if last_frame == frames_count:
@@ -131,7 +134,7 @@ def merge_only(
         frame_batch += 1
 
     ## merge video files into a single video file
-    merge_mkvs(ffmpeg, frame_batch, output_file, log_dir)
+    merge_files(ffmpeg, frame_batch, output_file, log_dir)
 
     with open("merged.txt", "w") as f:
         f.write("Merged")
