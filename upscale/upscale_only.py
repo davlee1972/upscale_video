@@ -201,9 +201,6 @@ def upscale_only(
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
-        if os.path.exists(str(frame_batch) + ".mkv"):
-            continue
-
         if upscale_dir:
             if os.path.exists(os.path.join(upscale_dir, str(frame_batch) + ".zip")):
                 continue

@@ -82,7 +82,7 @@ def merge_only(
 
     while True:
 
-        if os.path.exists(str(frame_batch) + ".mkv"):
+        if os.path.exists(str(frame_batch) + "." + output_format):
             frame_batch += 1
             continue
 
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         "-e",
         "--ffmpeg_encoder",
         default="av1_qsv",
-        help="ffmpeg encoder for mkv file. Default is av1_qsv.",
+        help="ffmpeg encoder for video file. Default is av1_qsv.",
     )
     parser.add_argument(
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."

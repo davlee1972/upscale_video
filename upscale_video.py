@@ -21,7 +21,7 @@ if __name__ == "__main__":
         "-e",
         "--ffmpeg_encoder",
         default="av1_qsv",
-        help="ffmpeg encoder for mkv file. Default is av1_qsv.",
+        help="ffmpeg encoder for video file. Default is av1_qsv.",
     )
     parser.add_argument(
         "-m",

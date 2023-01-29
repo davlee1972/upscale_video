@@ -247,7 +247,7 @@ def extract_frames(
         not os.path.exists(str(frames_count) + ".extract.png")
         and not os.path.exists(str(frames_count) + ".anime.png")
         and not os.path.exists(str(frames_count) + ".denoise.png")
-        and not os.path.exists(str(max(frame_batches.keys())) + ".mkv")
+        and not os.path.exists(str(max(frame_batches.keys())) + "." + output_format)
     ):
 
         logging.info(cmds)
@@ -924,7 +924,7 @@ def process_file(
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
-        if os.path.exists(str(frame_batch) + ".mkv"):
+        if os.path.exists(str(frame_batch) + "." + output_file):
             continue
 
         upscale_frames(

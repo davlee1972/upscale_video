@@ -83,10 +83,10 @@ Usage: python upscale_video.py -i INPUT_FILE -f FFMPEG
 options:
   -h, --help                            Show this help message and exit
   -i, --input_file INPUT_FILE           Input video file.
-  -o, --output_file OUTPUT_FILE         Optional output MKV video file location.
+  -o, --output_file OUTPUT_FILE         Optional output video file location.
                                          Default is input_file + ('.2x.' or '.4x.')
   -f, --ffmpeg FFMPEG                   Location of ffmpeg.
-  -e, --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for mkv file. Default is av1_qsv.
+  -e, --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for video file. Default is av1_qsv.
   -m, --models MODELS                   '-m a' will processing for anime to remove grain and color bleeding.
                                         '-m n=???' will add processing to remove film grain.
                                         Denoise level 1 to 30. 3 = light / 10 = heavy, etc.
