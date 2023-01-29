@@ -134,7 +134,7 @@ def merge_only(
         frame_batch += 1
 
     ## merge video files into a single video file
-    merge_files(ffmpeg, frame_batch, output_file, log_dir)
+    merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
 
     with open("merged.txt", "w") as f:
         f.write("Merged")
