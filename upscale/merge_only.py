@@ -15,7 +15,7 @@ from upscale_processing import get_metadata, merge_frames, merge_files
 
 
 def merge_only(
-    output_file,
+    output_dir,
     ffmpeg,
     ffmpeg_encoder,
     temp_dir,
@@ -25,7 +25,7 @@ def merge_only(
     """
     Merge PNG files into Video File only
 
-    :param output_file:
+    :param output_dir:
     :param ffmpeg:
     :param ffmpeg_encoder:
     :param temp_dir:
@@ -43,6 +43,20 @@ def merge_only(
         stream=sys.stdout,
     )
 
+    ## Create temp directory
+    if not temp_dir:
+        temp_dir = tempfile.gettempdir()
+
+    temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
+
+    ## change working directory to temp directory
+    os.chdir(temp_dir)
+
+    ## get metadata
+    info_dict = get_metadata(ffmpeg, None)
+
+    output_file = os.path.join(output_dir, info_dict['format']['filename'].split(os.sep)[-1][:-4] + ".upscaled.mkv")
+
     if log_dir:
         log_file = os.path.join(log_dir, output_file.split(os.sep)[-1][:-4] + ".log")
         # create log file handler and set level to debug
@@ -53,15 +67,6 @@ def merge_only(
 
     logging.info("Processing File: " + output_file)
 
-    ## Create temp directory
-    if not temp_dir:
-        temp_dir = tempfile.gettempdir()
-
-    temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
-
-    ## change working directory to temp directory
-    os.chdir(temp_dir)
-
     if os.path.exists("merged.txt"):
         sys.exit(output_file + "already processed - Exiting")
 
@@ -71,9 +76,6 @@ def merge_only(
         from wakepy import set_keepawake
 
         set_keepawake(keep_screen_awake=False)
-
-    ## get metadata
-    info_dict = get_metadata(ffmpeg, None)
 
     frames_count = info_dict["number_of_frames"]
     frame_rate = info_dict["frame_rate"]
@@ -148,9 +150,9 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-o",
-        "--output_file",
+        "--output_dir",
         required=True,
-        help="Output video file location",
+        help="Output video directory",
     )
     parser.add_argument("-f", "--ffmpeg", required=True, help="Location of ffmpeg.")
     parser.add_argument(
@@ -170,7 +172,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     merge_only(
-        args.output_file,
+        args.output_dir,
         args.ffmpeg,
         args.ffmpeg_encoder,
         args.temp_dir,

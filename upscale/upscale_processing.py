@@ -218,6 +218,7 @@ def extract_frames(
     frames_count,
     frame_batches,
     extract_only,
+    output_format = "mkv",
 ):
 
     cmds = [
@@ -874,6 +875,7 @@ def process_file(
         frames_count,
         frame_batches,
         extract_only,
+        output_format,
     )
 
     model_path = os.path.realpath(__file__).split(os.sep)
@@ -924,7 +926,7 @@ def process_file(
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
-        if os.path.exists(str(frame_batch) + "." + output_file):
+        if os.path.exists(str(frame_batch) + "." + output_format):
             continue
 
         upscale_frames(
@@ -954,7 +956,7 @@ def process_file(
         )
 
     ## merge video files into a single video file
-    merge_files(ffmpeg, frame_batch, output_file, log_dir)
+    merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
 
     with open("completed.txt", "w") as f:
         f.write("Completed")
