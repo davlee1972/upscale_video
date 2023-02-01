@@ -20,8 +20,7 @@ def process_image(
     temp_dir,
     output_dir,
     scale,
-    anime,
-    denoise,
+    models,
     gpus,
 ):
 
@@ -32,15 +31,25 @@ def process_image(
         stream=sys.stdout,
     )
 
-    if denoise:
-        if denoise > 30:
-            denoise = 30
-
-        if denoise <= 0:
-            denoise = None
-
     if scale not in [2, 4]:
         sys.exit("Scale must be 2 or 4")
+
+    if models:
+        models = models.split(",")
+    else:
+        models = []
+
+    if "r" in models:
+        scale = 4
+
+    denoise = [model.split("=") for model in models if model.startswith("n=")]
+
+    if denoise:
+        denoise = int(denoise[0][1])
+        if denoise > 30:
+            denoise = 30
+        if denoise <= 0:
+            denoise = None
 
     if gpus:
         try:
@@ -70,7 +79,14 @@ def process_image(
     workers_used = 0
     input_file_tag = "extract"
 
-    if anime:
+    if denoise:
+        logging.info("Starting denoise touchup...")
+        workers_used += process_denoise(
+            input_frames, input_file_tag, denoise, remove=False
+        )
+        input_file_tag = "denoise"
+
+    if "a" in models:
         logging.info("Starting anime touchup...")
 
         model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
@@ -93,15 +109,6 @@ def process_image(
         workers_used += len(gpus)
         input_file_tag = "anime"
 
-    if denoise:
-        logging.info("Starting denoise touchup...")
-
-        workers_used += process_denoise(
-            input_frames, input_file_tag, denoise, remove=False
-        )
-
-        input_file_tag = "denoise"
-
     logging.info("Starting upscale processing...")
 
     for frame in input_frames:
@@ -109,6 +116,15 @@ def process_image(
             os.remove(str(frame) + ".png")
         except:
             pass
+
+    if "r" in models:
+        model_file = "x_Valar_v1"
+        model_input = "input"
+        model_output = "output"
+    else:
+        model_file = "x_Compact_Pretrain"
+        model_input = "input"
+        model_output = "output"
 
     upscale_frames(
         input_frames,
@@ -119,6 +135,9 @@ def process_image(
         gpus,
         workers_used,
         model_path,
+        model_file,
+        model_input,
+        model_output,
         remove=False,
     )
 
@@ -146,20 +165,16 @@ if __name__ == "__main__":
         help="Output directory where test images will be saved",
     )
     parser.add_argument(
-        "-s", "--scale", type=int, default=2, help="scale 2 or 4. Default is 2."
-    )
-    parser.add_argument(
-        "-a",
-        "--anime",
-        action="store_true",
-        help="Adds processing for anime to remove grain and smooth color.",
-    )
-    parser.add_argument(
-        "-n",
-        "--denoise",
+        "-s",
+        "--scale",
         type=int,
-        default=0,
-        help="Adds processing to reduce image grain. Denoise level 1 to 30. 3 = light / 10 = heavy, etc..",
+        default=2,
+        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
+    )
+    parser.add_argument(
+        "-m",
+        "--models",
+        help="Adds additional processing. 'a' for anime videos, 'n={denoise level}' for noise reduction and 'r' for real life imaging. Example: -m a,n=3,r to use all three options.",
     )
     parser.add_argument(
         "-g", "--gpus", help="Optional gpu #s to use. Example 0,1,3. Default is 0."
@@ -172,7 +187,6 @@ if __name__ == "__main__":
         args.temp_dir,
         args.output_dir,
         args.scale,
-        args.anime,
-        args.denoise,
+        args.models,
         args.gpus,
     )

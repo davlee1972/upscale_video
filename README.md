@@ -72,7 +72,8 @@ Run upscale_video.py with the -x, --extract_only option.
 
 This will stop processing after frames extraction. 
 
-Run test_images.py on some extracted png files to sample what denoise level (-n, --denoise) to apply if needed. (-a, --anime) can also be passed in to apply anime enhancements.
+Run test_images.py on some extracted png files to sample what denoise level '-m n=???' to apply if needed.
+'-m a' can also be passed in to apply anime enhancements.
 
 Run upscale_video.py with -r, --resume_processing to continue with upscaling.
 
@@ -85,11 +86,14 @@ options:
   -o, --output_file OUTPUT_FILE         Optional output video file location.
                                          Default is input_file + ('.2x.' or '.4x.')
   -f, --ffmpeg FFMPEG                   Location of ffmpeg.
-  -e, --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for mkv file. Default is av1_qsv.
-  -a, --anime                           Adds processing for anime to remove grain and color bleeding.
-  -n, --denoise DENOISE                 Adds processing to remove film grain. Denoise level 1 to 30.
-                                         3 = light / 10 = heavy, etc.
-  -s, --scale SCALE                     Scale 2 or 4. Default is 2.
+  -e, --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for video file. Default is av1_qsv.
+  -m, --models MODELS                   '-m a' will processing for anime to remove grain and color bleeding.
+                                        '-m n=???' will add processing to remove film grain.
+                                        Denoise level 1 to 30. 3 = light / 10 = heavy, etc.
+                                        '-m r' will add processing for real life imaging
+                                        Can include combinations like '-m a,n=3,r'
+  -s, --scale SCALE                     Scale 2 or 4. Default is 2. If using real life imaging (4x model),
+                                        scale will autoset to 4.
   -t, --temp_dir TEMP_DIR               Temp directory. Default is tempfile.gettempdir().
   -g, --gpus GPUS                       Optional gpus to use. Example 0,1,1,2. Default is 0.
   -b, --batch_size BATCH_SIZE           Number of minutes to upscale per batch. Default is 10.
@@ -111,10 +115,13 @@ options:
   -i, --input_frames INPUT_FRAMES     List of input frames in format like 1,3,5-7,10-12,15
   -t, --temp_dir TEMP_DIR             Temp directory where extracted frames are saved. Default is tempfile.gettempdir().
   -o, --output_dir OUTPUT_DIR         Output directory where test images will be saved.
-  -s, --scale SCALE                   Scale 2 or 4. Default is 2.
-  -a, --anime                         Adds processing for anime to remove grain and smooth color.
-  -n, --denoise DENOISE               Adds processing to reduce image grain. Denoise level 1 to 30.
-                                      3 = light / 10 = heavy, etc.
+  -s, --scale SCALE                   Scale 2 or 4. Default is 2. If using real life imaging (4x model),
+                                      scale will autoset to 4.
+  -m, --models MODELS                 '-m a' will processing for anime to remove grain and color bleeding.
+                                      '-m n=???' will add processing to remove film grain.
+                                      Denoise level 1 to 30. 3 = light / 10 = heavy, etc.
+                                      '-m r' will add processing for real life imaging
+                                      Can include combinations like '-m a,n=3,r'
   -g, --gpus GPUS                     Optional gpus to use. Example 0,1,1,2. Default is 0.
 
 ```

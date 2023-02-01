@@ -218,6 +218,7 @@ def extract_frames(
     frames_count,
     frame_batches,
     extract_only,
+    output_format = "mkv",
 ):
 
     cmds = [
@@ -247,7 +248,7 @@ def extract_frames(
         not os.path.exists(str(frames_count) + ".extract.png")
         and not os.path.exists(str(frames_count) + ".anime.png")
         and not os.path.exists(str(frames_count) + ".denoise.png")
-        and not os.path.exists(str(max(frame_batches.keys())) + ".mkv")
+        and not os.path.exists(str(max(frame_batches.keys())) + "." + output_format)
     ):
 
         logging.info(cmds)
@@ -560,6 +561,9 @@ def upscale_frames(
     gpus,
     workers_used,
     model_path,
+    model_file,
+    model_input,
+    model_output,
     remove=True,
 ):
 
@@ -568,12 +572,18 @@ def upscale_frames(
     else:
         frames = range(start_frame, end_frame + 1)
 
-    model_file = "x_Compact_Pretrain"
-
     pool = multiprocessing.get_context("spawn").Pool(
         processes=len(gpus),
         initializer=init_worker,
-        initargs=(gpus, workers_used, model_path, model_file, scale, "input", "output"),
+        initargs=(
+            gpus,
+            workers_used,
+            model_path,
+            model_file,
+            scale,
+            model_input,
+            model_output,
+        ),
     )
 
     ## upscale frames
@@ -608,6 +618,7 @@ def merge_frames(
     start_frame,
     end_frame,
     frame_rate,
+    output_format,
 ):
 
     cmds = [
@@ -633,7 +644,7 @@ def merge_frames(
         "20",
         "-loglevel",
         "error",
-        str(frame_batch) + ".mkv",
+        str(frame_batch) + "." + output_format,
     ]
 
     logging.info(
@@ -648,8 +659,8 @@ def merge_frames(
     result = subprocess.run(cmds, capture_output=True, text=True)
 
     if result.stderr:
-        if os.path.exists(str(frame_batch) + ".mkv"):
-            os.remove(str(frame_batch) + ".mkv")
+        if os.path.exists(str(frame_batch) + "." + output_format):
+            os.remove(str(frame_batch) + "." + output_format)
         logging.error("PNG merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
@@ -671,8 +682,8 @@ def merge_frames(
 
     time.sleep(5)
 
-    if os.path.exists(str(frame_batch) + ".mkv"):
-        logging.info("Batch merged into " + str(frame_batch) + ".mkv")
+    if os.path.exists(str(frame_batch) + "." + output_format):
+        logging.info("Batch merged into " + str(frame_batch) + "." + output_format)
         logging.info(str(end_frame) + " total frames merged")
 
         ## delete merged png files
@@ -680,15 +691,16 @@ def merge_frames(
             os.remove(str(frame) + ".png")
     else:
         logging.error("Something went wrong with PNG merging..")
-        logging.error(str(frame_batch) + ".mkv not found..")
+        logging.error(str(frame_batch) + "." + output_format + " not found..")
         sys.exit("Error - Exiting")
 
 
-def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
+def merge_files(ffmpeg, frame_batches, output_file, output_format, log_dir):
     logging.info("Merging Fragments into " + output_file)
+    output_format = output_file.split(".")[-1]
     with open("merge_list.txt", "w") as f:
         for i in range(frame_batches):
-            f.write("file " + str(i + 1) + ".mkv\n")
+            f.write("file " + str(i + 1) + "." + output_format + "\n")
 
     cmds = [
         ffmpeg,
@@ -712,17 +724,17 @@ def merge_mkvs(ffmpeg, frame_batches, output_file, log_dir):
     if result.stderr:
         if os.path.exists(output_file):
             os.remove(output_file)
-        logging.error("MKV merging failed")
+        logging.error("File merging failed")
         logging.error(str(result.stderr))
         logging.error(str(result.args))
         sys.exit("Error - Exiting")
 
-    ## delete merged mkv files
+    ## delete merged files
     if os.path.exists(output_file):
         for i in range(frame_batches):
-            os.remove(str(i + 1) + ".mkv")
+            os.remove(str(i + 1) + "." + output_format)
     else:
-        logging.error("Something went wrong with MKV merging..")
+        logging.error("Something went wrong with file merging..")
         logging.error(output_file + " not found..")
         sys.exit("Error - Exiting")
 
@@ -738,8 +750,7 @@ def process_file(
     gpus,
     resume_processing,
     extract_only,
-    anime,
-    denoise,
+    models,
     log_level,
     log_dir,
 ):
@@ -756,8 +767,7 @@ def process_file(
     :param gpus:
     :param resume_processing:
     :param extract_only:
-    :param anime:
-    :param denoise:
+    :param models:
     :param log_level:
     :param log_dir:
     """
@@ -767,6 +777,23 @@ def process_file(
 
     if not os.path.exists(input_file):
         sys.exit(input_file + " not found")
+
+    if models:
+        models = models.split(",")
+    else:
+        models = []
+
+    if "r" in models:
+        scale = 4
+
+    denoise = [model.split("=") for model in models if model.startswith("n=")]
+
+    if denoise:
+        denoise = int(denoise[0][1])
+        if denoise > 30:
+            denoise = 30
+        if denoise <= 0:
+            denoise = None
 
     if not log_level:
         log_level = logging.INFO
@@ -796,18 +823,13 @@ def process_file(
     else:
         gpus = [0]
 
+    output_format = input_file.split(".")[-1]
+
     if not output_file:
         output_file = input_file.split(".")
-        output_file_ext = output_file[-1]
-        output_file = ".".join(output_file[:-1] + [str(scale) + "x", output_file_ext])
+        output_file = ".".join(output_file[:-1] + [str(scale) + "x", output_format])
 
     logging.info("Processing File: " + input_file)
-
-    if denoise:
-        if denoise > 30:
-            denoise = 30
-        if denoise <= 0:
-            denoise = None
 
     ## Create temp directory
     if not temp_dir:
@@ -853,6 +875,7 @@ def process_file(
         frames_count,
         frame_batches,
         extract_only,
+        output_format,
     )
 
     model_path = os.path.realpath(__file__).split(os.sep)
@@ -861,7 +884,12 @@ def process_file(
     workers_used = 0
     input_file_tag = "extract"
 
-    if anime:
+    if denoise:
+        logging.info("Starting denoise touchup...")
+        workers_used += process_denoise(frames_count, input_file_tag, denoise)
+        input_file_tag = "denoise"
+
+    if "a" in models:
         logging.info("Starting anime touchup...")
 
         model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
@@ -884,19 +912,21 @@ def process_file(
         workers_used += len(gpus)
         input_file_tag = "anime"
 
-    if denoise:
-        logging.info("Starting denoise touchup...")
-
-        workers_used += process_denoise(frames_count, input_file_tag, denoise)
-
-        input_file_tag = "denoise"
-
     logging.info("Starting upscale processing...")
+
+    if "r" in models:
+        model_file = "x_Valar_v1"
+        model_input = "input"
+        model_output = "output"
+    else:
+        model_file = "x_Compact_Pretrain"
+        model_input = "input"
+        model_output = "output"
 
     ## process input file in batches
     for frame_batch, frame_range in frame_batches.items():
 
-        if os.path.exists(str(frame_batch) + ".mkv"):
+        if os.path.exists(str(frame_batch) + "." + output_format):
             continue
 
         upscale_frames(
@@ -908,6 +938,9 @@ def process_file(
             gpus,
             workers_used,
             model_path,
+            model_file,
+            model_input,
+            model_output,
         )
 
         workers_used += len(gpus)
@@ -919,10 +952,11 @@ def process_file(
             frame_range[0],
             frame_range[1],
             frame_rate,
+            output_format,
         )
 
     ## merge video files into a single video file
-    merge_mkvs(ffmpeg, frame_batch, output_file, log_dir)
+    merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
 
     with open("completed.txt", "w") as f:
         f.write("Completed")
