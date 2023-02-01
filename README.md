@@ -133,6 +133,7 @@ options:
   -h, --help           Show this help message and exit
   -g, --gpus GPUS      Optional gpus to test. examples: 0 or 0,1 or 0,1,1 (to test same gpu twice)
   -s, --scale SCALE    Scale 2 or 4. Default is 2.
+  -r, --runs RUNS      Number of test runs. Default is 10.
 
 ```
 
