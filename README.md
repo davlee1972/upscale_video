@@ -117,7 +117,7 @@ options:
   -o, --output_dir OUTPUT_DIR         Output directory where test images will be saved.
   -s, --scale SCALE                   Scale 2 or 4. Default is 2. If using real life imaging (4x model),
                                       scale will autoset to 4.
-  -m, --models MODELS                 '-m a' will processing for anime to remove grain and color bleeding.
+  -m, --models MODELS                 '-m a' will add processing for anime to remove grain and color bleeding.
                                       '-m n=???' will add processing to remove film grain.
                                       Denoise level 1 to 30. 3 = light / 10 = heavy, etc.
                                       '-m r' will add processing for real life imaging
