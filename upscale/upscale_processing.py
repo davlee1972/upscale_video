@@ -218,7 +218,7 @@ def extract_frames(
     frames_count,
     frame_batches,
     extract_only,
-    output_format = "mkv",
+    output_format="mkv",
 ):
 
     cmds = [
@@ -862,7 +862,11 @@ def process_file(
     duration = info_dict["duration"]
 
     ## calculate frames per minute and batches
-    frames_per_batch = int(frame_rate * 60) * batch_size
+    if batch_size > 0:
+        frames_per_batch = int(frame_rate * 60) * batch_size
+    else:
+        frames_per_batch = int(frames_count / (-1 * batch_size)) + 100
+
     frame_batches = calc_batches(frames_count, frames_per_batch)
 
     crop_detect = get_crop_detect(ffmpeg, input_file, duration)

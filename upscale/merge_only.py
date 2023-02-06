@@ -55,7 +55,10 @@ def merge_only(
     ## get metadata
     info_dict = get_metadata(ffmpeg, None)
 
-    output_file = os.path.join(output_dir, info_dict['format']['filename'].split(os.sep)[-1][:-4] + ".upscaled.mkv")
+    output_file = os.path.join(
+        output_dir,
+        info_dict["format"]["filename"].split(os.sep)[-1][:-4] + ".upscaled.mkv",
+    )
 
     if log_dir:
         log_file = os.path.join(log_dir, output_file.split(os.sep)[-1][:-4] + ".log")
