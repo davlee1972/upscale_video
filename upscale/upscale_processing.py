@@ -847,7 +847,7 @@ def process_file(
     os.chdir(temp_dir)
 
     if resume_processing and os.path.exists("completed.txt"):
-        sys.exit(input_file + "already processed - Exiting")
+        sys.exit(input_file + " already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake

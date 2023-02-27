@@ -120,7 +120,7 @@ def upscale_only(
     os.chdir(temp_dir)
 
     if os.path.exists("upscaled.txt"):
-        sys.exit(input_file + "already processed - Exiting")
+        sys.exit(input_file + " already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake

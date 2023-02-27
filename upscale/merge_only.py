@@ -71,7 +71,7 @@ def merge_only(
     logging.info("Processing File: " + output_file)
 
     if os.path.exists("merged.txt"):
-        sys.exit(output_file + "already processed - Exiting")
+        sys.exit(output_file + " already processed - Exiting")
 
     output_format = output_file.split(".")[-1]
 
