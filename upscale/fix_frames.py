@@ -253,19 +253,23 @@ def fix_frames(
         model_input = "input"
         model_output = "output"
 
-    upscale_frames(
-        bad_frames,
-        None,
-        None,
-        input_file_tag,
-        scale,
-        gpus,
-        workers_used,
-        model_path,
-        model_file,
-        model_input,
-        model_output,
-    )
+    if scale == 1:
+        for frame in bad_frames:
+            os.rename(str(frame) + "." + input_file_tag + ".png", str(frame) + ".png")
+    else:
+        upscale_frames(
+            bad_frames,
+            None,
+            None,
+            input_file_tag,
+            scale,
+            gpus,
+            workers_used,
+            model_path,
+            model_file,
+            model_input,
+            model_output,
+        )
 
     logging.info("Upscaled frame " + str(frame))
 
