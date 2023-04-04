@@ -129,18 +129,6 @@ def get_metadata(ffmpeg, input_file):
     logging.info("Duration: " + str(duration))
     logging.info("Frames per second: " + str(frame_rate))
 
-    frames_check = round(duration * frame_rate, 0)
-
-    if frames_check != frames_count:
-        logging.info(
-            "Number of frames mismatch: "
-            + str(frames_count)
-            + " vs "
-            + str(frames_check)
-        )
-        info_dict["number_of_frames"] = frames_check
-        logging.info("Corrected number of framerate is: " + str(frames_check))
-
     return info_dict
 
 
@@ -151,10 +139,10 @@ def get_crop_detect(ffmpeg, input_file, duration):
         with open("crop_detect.txt") as f:
             crop = f.read()
     else:
-        interval = int(duration / 102)
+        interval = int(duration / 120)
         crop_list = []
 
-        for i in range(100):
+        for i in range(10,110):
             cmds = [
                 ffmpeg,
                 "-hide_banner",
