@@ -915,27 +915,33 @@ def process_file(
         model_input = "input"
         model_output = "output"
 
-    ## process input file in batches
+    ## process input file in batches:
     for frame_batch, frame_range in frame_batches.items():
 
         if os.path.exists(str(frame_batch) + "." + output_format):
             continue
 
-        upscale_frames(
-            frame_batch,
-            frame_range[0],
-            frame_range[1],
-            input_file_tag,
-            scale,
-            gpus,
-            workers_used,
-            model_path,
-            model_file,
-            model_input,
-            model_output,
-        )
+        if scale == 1:
+            for frame in range(frame_range[0], frame_range[1] + 1):
+                os.rename(
+                    str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
+                )
+        else:
+            upscale_frames(
+                frame_batch,
+                frame_range[0],
+                frame_range[1],
+                input_file_tag,
+                scale,
+                gpus,
+                workers_used,
+                model_path,
+                model_file,
+                model_input,
+                model_output,
+            )
 
-        workers_used += len(gpus)
+            workers_used += len(gpus)
 
         merge_frames(
             ffmpeg,
