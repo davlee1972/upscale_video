@@ -120,7 +120,7 @@ def upscale_only(
     os.chdir(temp_dir)
 
     if os.path.exists("upscaled.txt"):
-        sys.exit(input_file + "already processed - Exiting")
+        sys.exit(input_file + " already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake
@@ -213,19 +213,25 @@ def upscale_only(
             if os.path.exists(str(frame_batch) + ".zip"):
                 continue
 
-        upscale_frames(
-            frame_batch,
-            frame_range[0],
-            frame_range[1],
-            input_file_tag,
-            scale,
-            gpus,
-            workers_used,
-            model_path,
-            model_file,
-            model_input,
-            model_output,
-        )
+        if scale == 1:
+            for frame in range(frame_range[0], frame_range[1] + 1):
+                os.rename(
+                    str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
+                )
+        else:
+            upscale_frames(
+                frame_batch,
+                frame_range[0],
+                frame_range[1],
+                input_file_tag,
+                scale,
+                gpus,
+                workers_used,
+                model_path,
+                model_file,
+                model_input,
+                model_output,
+            )
 
         workers_used += len(gpus)
 

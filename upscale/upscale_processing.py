@@ -129,18 +129,6 @@ def get_metadata(ffmpeg, input_file):
     logging.info("Duration: " + str(duration))
     logging.info("Frames per second: " + str(frame_rate))
 
-    frames_check = round(duration * frame_rate, 0)
-
-    if frames_check != frames_count:
-        logging.info(
-            "Number of frames mismatch: "
-            + str(frames_count)
-            + " vs "
-            + str(frames_check)
-        )
-        info_dict["number_of_frames"] = frames_check
-        logging.info("Corrected number of framerate is: " + str(frames_check))
-
     return info_dict
 
 
@@ -151,10 +139,10 @@ def get_crop_detect(ffmpeg, input_file, duration):
         with open("crop_detect.txt") as f:
             crop = f.read()
     else:
-        interval = int(duration / 102)
+        interval = int(duration / 120)
         crop_list = []
 
-        for i in range(100):
+        for i in range(10,110):
             cmds = [
                 ffmpeg,
                 "-hide_banner",
@@ -835,6 +823,8 @@ def process_file(
     if not temp_dir:
         temp_dir = tempfile.gettempdir()
 
+    start_dir = temp_dir
+
     temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
     if os.path.exists(temp_dir):
         if not resume_processing:
@@ -847,7 +837,7 @@ def process_file(
     os.chdir(temp_dir)
 
     if resume_processing and os.path.exists("completed.txt"):
-        sys.exit(input_file + "already processed - Exiting")
+        sys.exit(input_file + " already processed - Exiting")
 
     if sys.platform in ["win32", "cygwin", "darwin"]:
         from wakepy import set_keepawake
@@ -927,27 +917,33 @@ def process_file(
         model_input = "input"
         model_output = "output"
 
-    ## process input file in batches
+    ## process input file in batches:
     for frame_batch, frame_range in frame_batches.items():
 
         if os.path.exists(str(frame_batch) + "." + output_format):
             continue
 
-        upscale_frames(
-            frame_batch,
-            frame_range[0],
-            frame_range[1],
-            input_file_tag,
-            scale,
-            gpus,
-            workers_used,
-            model_path,
-            model_file,
-            model_input,
-            model_output,
-        )
+        if scale == 1:
+            for frame in range(frame_range[0], frame_range[1] + 1):
+                os.rename(
+                    str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
+                )
+        else:
+            upscale_frames(
+                frame_batch,
+                frame_range[0],
+                frame_range[1],
+                input_file_tag,
+                scale,
+                gpus,
+                workers_used,
+                model_path,
+                model_file,
+                model_input,
+                model_output,
+            )
 
-        workers_used += len(gpus)
+            workers_used += len(gpus)
 
         merge_frames(
             ffmpeg,
@@ -969,4 +965,5 @@ def process_file(
 
     if not resume_processing:
         logging.info("Cleaning up temp directory")
+        os.chdir(start_dir)
         shutil.rmtree(temp_dir)

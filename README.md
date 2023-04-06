@@ -4,7 +4,7 @@ Compact Pretrained Models from the wiki below are used.
 
 https://upscale.wiki/wiki/Model_Database#Real-ESRGAN_Compact_Custom_Models
 
-This script will convert a video file using one minute's worth of frames at a time to save disk space. The video fragments are then merged at the end of the process into a final video file.
+This script will convert a video file using ten minutes worth of frames at a time to save disk space. The video fragments are then merged at the end of the process into a final video file.
 
 # You must have ffmpeg installed and a vulkan compatible GPU
 
