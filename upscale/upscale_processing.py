@@ -823,6 +823,8 @@ def process_file(
     if not temp_dir:
         temp_dir = tempfile.gettempdir()
 
+    start_dir = temp_dir
+
     temp_dir = os.path.abspath(os.path.join(temp_dir, "upscale_video"))
     if os.path.exists(temp_dir):
         if not resume_processing:
@@ -963,4 +965,5 @@ def process_file(
 
     if not resume_processing:
         logging.info("Cleaning up temp directory")
+        os.chdir(start_dir)
         shutil.rmtree(temp_dir)
