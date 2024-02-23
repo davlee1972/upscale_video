@@ -178,6 +178,7 @@ if __name__ == "__main__":
         args.output_dir,
         args.ffmpeg,
         args.ffmpeg_encoder,
+        args.pix_fmt,
         args.temp_dir,
         args.log_level,
         args.log_dir,

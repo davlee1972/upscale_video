@@ -78,6 +78,7 @@ if __name__ == "__main__":
         args.output_file,
         args.ffmpeg,
         args.ffmpeg_encoder,
+        args.pix_fmt,
         args.scale,
         args.temp_dir,
         args.batch_size,
