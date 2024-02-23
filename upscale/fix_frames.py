@@ -10,6 +10,8 @@ import subprocess
 import tempfile
 import sys
 
+from wakepy import keep
+
 from upscale_processing import (
     get_metadata,
     get_crop_detect,
@@ -110,172 +112,169 @@ def fix_frames(
     cwd_dir = os.getcwd()
     os.chdir(temp_dir)
 
-    if sys.platform in ["win32", "cygwin", "darwin"]:
-        from wakepy import set_keepawake
+    with keep.running() as m:
 
-        set_keepawake(keep_screen_awake=False)
+        ## get metadata
+        info_dict = get_metadata(ffmpeg, input_file)
 
-    ## get metadata
-    info_dict = get_metadata(ffmpeg, input_file)
+        frame_rate = info_dict["frame_rate"]
+        duration = info_dict["duration"]
 
-    frame_rate = info_dict["frame_rate"]
-    duration = info_dict["duration"]
+        crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
+        bad_frames = get_frames(bad_frames)
 
-    bad_frames = get_frames(bad_frames)
+        missing_frames = []
+        missing_test = 1
 
-    missing_frames = []
-    missing_test = 1
-
-    for frame in bad_frames:
-        if not os.path.exists(str(frame) + ".extract.png"):
-            missing_frames.append(frame)
-
-    if denoise:
-        missing_test += 1
         for frame in bad_frames:
-            if not os.path.exists(str(frame) + ".denoise.png"):
+            if not os.path.exists(str(frame) + ".extract.png"):
                 missing_frames.append(frame)
 
-    if "a" in models:
-        missing_test += 1
+        if denoise:
+            missing_test += 1
+            for frame in bad_frames:
+                if not os.path.exists(str(frame) + ".denoise.png"):
+                    missing_frames.append(frame)
+
+        if "a" in models:
+            missing_test += 1
+            for frame in bad_frames:
+                if not os.path.exists(str(frame) + ".anime.png"):
+                    missing_frames.append(frame)
+
+        max_frame = {
+            frame: missing_frames.count(frame)
+            for frame in missing_frames
+            if missing_frames.count(frame) == missing_test
+        }.keys()
+        if max_frame:
+            max_frame = max(max_frame)
+
+        if max_frame:
+            cmds = [
+                ffmpeg,
+                "-hide_banner",
+                "-hwaccel",
+                "auto",
+                "-i",
+                input_file,
+                "-vframes",
+                str(max_frame),
+                "-loglevel",
+                "error",
+                "-pix_fmt",
+                "rgb24",
+            ]
+
+            if crop_detect:
+                logging.info("Crop Detected: " + crop_detect)
+                cmds.append("-vf")
+                if "prune" in info_dict:
+                    cmds.append(crop_detect + "," + info_dict["prune"])
+                else:
+                    cmds.append(crop_detect)
+            elif "prune" in info_dict:
+                cmds.append("-vf")
+                cmds.append(info_dict["prune"])
+
+            cmds.append("%d.extract.png")
+
+            ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
+            logging.info("Starting Frames Extraction..")
+
+            logging.info(cmds)
+            result = subprocess.run(cmds)
+
+            if result.stderr:
+                logging.error("Error with extracting frames.")
+                logging.error(str(result.stderr))
+                logging.error(str(result.args))
+                sys.exit("Error - Exiting")
+
+            ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
+            logging.info("Removing extra extracted frames.")
+
+            for frame in range(max_frame):
+                if frame + 1 not in bad_frames:
+                    try:
+                        os.remove(str(frame + 1) + ".extract.png")
+                    except:
+                        pass
+
+        model_path = os.path.realpath(__file__).split(os.sep)
+        model_path = os.sep.join(model_path[:-2] + ["models"])
+
+        workers_used = 0
+        input_file_tag = "extract"
+
+        if denoise:
+            logging.info("Starting denoise touchup...")
+            workers_used += process_denoise(bad_frames, input_file_tag, denoise)
+            input_file_tag = "denoise"
+
+        if "a" in models:
+            logging.info("Starting anime touchup...")
+
+            model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+            output_file_tag = "anime"
+
+            process_model(
+                bad_frames,
+                model_path,
+                model_file,
+                1,
+                "input",
+                "output",
+                input_file_tag,
+                output_file_tag,
+                gpus,
+                workers_used,
+            )
+
+            workers_used += len(gpus)
+            input_file_tag = "anime"
+
+        logging.info("Starting upscale processing...")
+
         for frame in bad_frames:
-            if not os.path.exists(str(frame) + ".anime.png"):
-                missing_frames.append(frame)
+            try:
+                os.remove(str(frame) + ".png")
+            except:
+                pass
 
-    max_frame = {
-        frame: missing_frames.count(frame)
-        for frame in missing_frames
-        if missing_frames.count(frame) == missing_test
-    }.keys()
-    if max_frame:
-        max_frame = max(max_frame)
+        if "r" in models:
+            model_file = "x_Valar_v1"
+            model_input = "input"
+            model_output = "output"
+        else:
+            model_file = "x_Compact_Pretrain"
+            model_input = "input"
+            model_output = "output"
 
-    if max_frame:
-        cmds = [
-            ffmpeg,
-            "-hide_banner",
-            "-hwaccel",
-            "auto",
-            "-i",
-            input_file,
-            "-vframes",
-            str(max_frame),
-            "-loglevel",
-            "error",
-            "-pix_fmt",
-            "rgb24",
-        ]
+        if scale == 1:
+            for frame in bad_frames:
+                os.rename(str(frame) + "." + input_file_tag + ".png", str(frame) + ".png")
+        else:
+            upscale_frames(
+                bad_frames,
+                None,
+                None,
+                input_file_tag,
+                scale,
+                gpus,
+                workers_used,
+                model_path,
+                model_file,
+                model_input,
+                model_output,
+            )
 
-        if crop_detect:
-            logging.info("Crop Detected: " + crop_detect)
-            cmds.append("-vf")
-            if "prune" in info_dict:
-                cmds.append(crop_detect + "," + info_dict["prune"])
-            else:
-                cmds.append(crop_detect)
-        elif "prune" in info_dict:
-            cmds.append("-vf")
-            cmds.append(info_dict["prune"])
+        logging.info("Upscaled frame " + str(frame))
 
-        cmds.append("%d.extract.png")
+        os.chdir(cwd_dir)
 
-        ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
-        logging.info("Starting Frames Extraction..")
-
-        logging.info(cmds)
-        result = subprocess.run(cmds)
-
-        if result.stderr:
-            logging.error("Error with extracting frames.")
-            logging.error(str(result.stderr))
-            logging.error(str(result.args))
-            sys.exit("Error - Exiting")
-
-        ## Extract frames to temp dir. Need 300 gigs for a 2 hour movie
-        logging.info("Removing extra extracted frames.")
-
-        for frame in range(max_frame):
-            if frame + 1 not in bad_frames:
-                try:
-                    os.remove(str(frame + 1) + ".extract.png")
-                except:
-                    pass
-
-    model_path = os.path.realpath(__file__).split(os.sep)
-    model_path = os.sep.join(model_path[:-2] + ["models"])
-
-    workers_used = 0
-    input_file_tag = "extract"
-
-    if denoise:
-        logging.info("Starting denoise touchup...")
-        workers_used += process_denoise(bad_frames, input_file_tag, denoise)
-        input_file_tag = "denoise"
-
-    if "a" in models:
-        logging.info("Starting anime touchup...")
-
-        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
-        output_file_tag = "anime"
-
-        process_model(
-            bad_frames,
-            model_path,
-            model_file,
-            1,
-            "input",
-            "output",
-            input_file_tag,
-            output_file_tag,
-            gpus,
-            workers_used,
-        )
-
-        workers_used += len(gpus)
-        input_file_tag = "anime"
-
-    logging.info("Starting upscale processing...")
-
-    for frame in bad_frames:
-        try:
-            os.remove(str(frame) + ".png")
-        except:
-            pass
-
-    if "r" in models:
-        model_file = "x_Valar_v1"
-        model_input = "input"
-        model_output = "output"
-    else:
-        model_file = "x_Compact_Pretrain"
-        model_input = "input"
-        model_output = "output"
-
-    if scale == 1:
-        for frame in bad_frames:
-            os.rename(str(frame) + "." + input_file_tag + ".png", str(frame) + ".png")
-    else:
-        upscale_frames(
-            bad_frames,
-            None,
-            None,
-            input_file_tag,
-            scale,
-            gpus,
-            workers_used,
-            model_path,
-            model_file,
-            model_input,
-            model_output,
-        )
-
-    logging.info("Upscaled frame " + str(frame))
-
-    os.chdir(cwd_dir)
-
-    logging.info("Fix frames finished")
+        logging.info("Fix frames finished")
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ def merge_only(
     output_dir,
     ffmpeg,
     ffmpeg_encoder,
+    pix_fmt,
     temp_dir,
     log_level,
     log_dir,
@@ -28,6 +29,7 @@ def merge_only(
     :param output_dir:
     :param ffmpeg:
     :param ffmpeg_encoder:
+    :param pix_fmt:
     :param temp_dir:
     :param log_level:
     :param log_dir:
@@ -75,76 +77,74 @@ def merge_only(
 
     output_format = output_file.split(".")[-1]
 
-    if sys.platform in ["win32", "cygwin", "darwin"]:
-        from wakepy import set_keepawake
+    with keep.running() as m:
 
-        set_keepawake(keep_screen_awake=False)
+        frames_count = info_dict["number_of_frames"]
+        frame_rate = info_dict["frame_rate"]
 
-    frames_count = info_dict["number_of_frames"]
-    frame_rate = info_dict["frame_rate"]
+        frame_batch = 1
 
-    frame_batch = 1
+        while True:
 
-    while True:
+            if os.path.exists(str(frame_batch) + "." + output_format):
+                frame_batch += 1
+                continue
 
-        if os.path.exists(str(frame_batch) + "." + output_format):
-            frame_batch += 1
-            continue
+            if os.path.exists(str(frame_batch) + ".zip"):
+                logging.info("Extracting png files from " + str(frame_batch) + ".zip")
+                with zipfile.ZipFile(str(frame_batch) + ".zip", "r") as zObject:
+                    try:
+                        zObject.extractall()
+                    except Exception as e:
+                        logging.error("Zipfile extract failed")
+                        logging.error(e)
+                        sys.exit("Error - Exiting")
 
-        if os.path.exists(str(frame_batch) + ".zip"):
-            logging.info("Extracting png files from " + str(frame_batch) + ".zip")
-            with zipfile.ZipFile(str(frame_batch) + ".zip", "r") as zObject:
-                try:
-                    zObject.extractall()
-                except Exception as e:
-                    logging.error("Zipfile extract failed")
-                    logging.error(e)
-                    sys.exit("Error - Exiting")
+                os.remove(str(frame_batch) + ".zip")
 
-            os.remove(str(frame_batch) + ".zip")
+            png_files = glob.glob("*.png")
+            png_files = [int(file_name.split(".")[0]) for file_name in png_files]
 
-        png_files = glob.glob("*.png")
-        png_files = [int(file_name.split(".")[0]) for file_name in png_files]
+            if png_files:
+                starting_frame = min(png_files)
+                last_frame = max(png_files)
+            else:
+                logging.error("No more png files found - Exiting")
+                sys.exit()
 
-        if png_files:
-            starting_frame = min(png_files)
-            last_frame = max(png_files)
-        else:
-            logging.error("No more png files found - Exiting")
-            sys.exit()
+            if last_frame - starting_frame + 1 != len(png_files):
+                logging.error("Frame counts mismatch - Exiting")
+                logging.error(
+                    str(last_frame - starting_frame + 1)
+                    + " vs "
+                    + str(len(png_files))
+                    + " found."
+                )
+                sys.exit()
 
-        if last_frame - starting_frame + 1 != len(png_files):
-            logging.error("Frame counts mismatch - Exiting")
-            logging.error(
-                str(last_frame - starting_frame + 1)
-                + " vs "
-                + str(len(png_files))
-                + " found."
+            merge_frames(
+                ffmpeg,
+                ffmpeg_encoder,
+                frame_batch,
+                starting_frame,
+                last_frame,
+                frame_rate,
+                pix_fmt,
+                output_format,
             )
-            sys.exit()
 
-        merge_frames(
-            ffmpeg,
-            ffmpeg_encoder,
-            frame_batch,
-            starting_frame,
-            last_frame,
-            frame_rate,
-            output_format,
-        )
+            if last_frame == frames_count:
+                break
 
-        if last_frame == frames_count:
-            break
+            frame_batch += 1
 
-        frame_batch += 1
+        ## merge video files into a single video file
+        merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
 
-    ## merge video files into a single video file
-    merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
+        with open("merged.txt", "w") as f:
+            f.write("Merged")
 
-    with open("merged.txt", "w") as f:
-        f.write("Merged")
-
-    logging.info("Merge only finished for " + output_file)
+        logging.info("Merge only finished for " + output_file)
 
 
 if __name__ == "__main__":

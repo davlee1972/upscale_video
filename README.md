@@ -22,13 +22,13 @@ List of ffmpeg encoders is here: https://ffmpeg.org/ffmpeg-codecs.html#Video-Enc
 
 # Installation
 
-Python 3.6 through 3.10. 3.11 isn't supported yet as of Jan 8th, 2023.
+Python 3.7 through 3.11.
 
 Download and install ffmpeg: https://ffmpeg.org/download.html
 
 pip install ncnn_vulkan
 
-pip install wakepy
+pip install wakepy>=0.7.2
 
 pip install pillow
 
@@ -87,6 +87,8 @@ options:
                                          Default is input_file + ('.2x.' or '.4x.')
   -f, --ffmpeg FFMPEG                   Location of ffmpeg.
   -e, --ffmpeg_encoder FFMPEG_ENCODER   ffmpeg encoder for video file. Default is av1_qsv.
+  -p, --pix_fmt PIX_FMT                 Pixel format used when merging frames into a video file.
+                                        Default is p010le which is 10 bit color.
   -m, --models MODELS                   '-m a' will processing for anime to remove grain and color bleeding.
                                         '-m n=???' will add processing to remove film grain.
                                         Denoise level 1 to 30. 3 = light / 10 = heavy, etc.

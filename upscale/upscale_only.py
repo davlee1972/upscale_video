@@ -52,7 +52,7 @@ def upscale_only(
     :param log_dir:
     """
 
-    if scale not in [2, 4]:
+    if scale not in [1, 2, 4]:
         sys.exit("Scale must be 2 or 4 - Exiting")
 
     if not os.path.exists(input_file):
@@ -122,146 +122,143 @@ def upscale_only(
     if os.path.exists("upscaled.txt"):
         sys.exit(input_file + " already processed - Exiting")
 
-    if sys.platform in ["win32", "cygwin", "darwin"]:
-        from wakepy import set_keepawake
+    with keep.running() as m:
 
-        set_keepawake(keep_screen_awake=False)
+        ## get metadata
+        info_dict = get_metadata(ffmpeg, input_file)
 
-    ## get metadata
-    info_dict = get_metadata(ffmpeg, input_file)
+        frames_count = info_dict["number_of_frames"]
+        frame_rate = info_dict["frame_rate"]
+        duration = info_dict["duration"]
 
-    frames_count = info_dict["number_of_frames"]
-    frame_rate = info_dict["frame_rate"]
-    duration = info_dict["duration"]
+        ## calculate frames per minute
+        ## calculate frames per minute and batches
+        if batch_size > 0:
+            frames_per_batch = int(frame_rate * 60) * batch_size
+        else:
+            frames_per_batch = int(frames_count / (-1 * batch_size)) + 100
 
-    ## calculate frames per minute
-    ## calculate frames per minute and batches
-    if batch_size > 0:
-        frames_per_batch = int(frame_rate * 60) * batch_size
-    else:
-        frames_per_batch = int(frames_count / (-1 * batch_size)) + 100
+        frame_batches = calc_batches(frames_count, frames_per_batch)
 
-    frame_batches = calc_batches(frames_count, frames_per_batch)
+        crop_detect = get_crop_detect(ffmpeg, input_file, duration)
 
-    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
-
-    extract_frames(
-        ffmpeg,
-        input_file,
-        crop_detect,
-        info_dict,
-        frames_count,
-        {1: [1, frames_count]},
-        extract_only,
-    )
-
-    model_path = os.path.realpath(__file__).split(os.sep)
-    model_path = os.sep.join(model_path[:-2] + ["models"])
-
-    workers_used = 0
-    input_file_tag = "extract"
-
-    if denoise:
-        logging.info("Starting denoise touchup...")
-        workers_used += process_denoise(frames_count, input_file_tag, denoise)
-        input_file_tag = "denoise"
-
-    if "a" in models:
-        logging.info("Starting anime touchup...")
-
-        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
-        output_file_tag = "anime"
-
-        process_model(
+        extract_frames(
+            ffmpeg,
+            input_file,
+            crop_detect,
+            info_dict,
             frames_count,
-            model_path,
-            model_file,
-            1,
-            "input",
-            "output",
-            input_file_tag,
-            output_file_tag,
-            gpus,
-            workers_used,
+            {1: [1, frames_count]},
+            extract_only,
         )
 
-        workers_used += len(gpus)
-        input_file_tag = "anime"
+        model_path = os.path.realpath(__file__).split(os.sep)
+        model_path = os.sep.join(model_path[:-2] + ["models"])
 
-    if upscale_dir:
-        shutil.copyfile("metadata.json", os.path.join(upscale_dir, "metadata.json"))
-        shutil.copyfile("crop_detect.txt", os.path.join(upscale_dir, "crop_detect.txt"))
+        workers_used = 0
+        input_file_tag = "extract"
 
-    logging.info("Starting upscale processing...")
+        if denoise:
+            logging.info("Starting denoise touchup...")
+            workers_used += process_denoise(frames_count, input_file_tag, denoise)
+            input_file_tag = "denoise"
 
-    if "r" in models:
-        model_file = "x_Valar_v1"
-        model_input = "input"
-        model_output = "output"
-    else:
-        model_file = "x_Compact_Pretrain"
-        model_input = "input"
-        model_output = "output"
+        if "a" in models:
+            logging.info("Starting anime touchup...")
 
-    ## process input file in batches
-    for frame_batch, frame_range in frame_batches.items():
+            model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+            output_file_tag = "anime"
 
-        if upscale_dir:
-            if os.path.exists(os.path.join(upscale_dir, str(frame_batch) + ".zip")):
-                continue
-        else:
-            if os.path.exists(str(frame_batch) + ".zip"):
-                continue
-
-        if scale == 1:
-            for frame in range(frame_range[0], frame_range[1] + 1):
-                os.rename(
-                    str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
-                )
-        else:
-            upscale_frames(
-                frame_batch,
-                frame_range[0],
-                frame_range[1],
-                input_file_tag,
-                scale,
-                gpus,
-                workers_used,
+            process_model(
+                frames_count,
                 model_path,
                 model_file,
-                model_input,
-                model_output,
+                1,
+                "input",
+                "output",
+                input_file_tag,
+                output_file_tag,
+                gpus,
+                workers_used,
             )
 
-        workers_used += len(gpus)
+            workers_used += len(gpus)
+            input_file_tag = "anime"
 
-        zipfile_name = str(frame_batch) + ".zip"
         if upscale_dir:
-            zipfile_name = os.path.join(upscale_dir, zipfile_name)
+            shutil.copyfile("metadata.json", os.path.join(upscale_dir, "metadata.json"))
+            shutil.copyfile("crop_detect.txt", os.path.join(upscale_dir, "crop_detect.txt"))
 
-        logging.info("Zipping png files into " + zipfile_name)
+        logging.info("Starting upscale processing...")
 
-        try:
-            with zipfile.ZipFile(
-                zipfile_name,
-                "w",
-                compression=zipfile.ZIP_DEFLATED,
-                compresslevel=0,
-            ) as zip:
+        if "r" in models:
+            model_file = "x_Valar_v1"
+            model_input = "input"
+            model_output = "output"
+        else:
+            model_file = "x_Compact_Pretrain"
+            model_input = "input"
+            model_output = "output"
+
+        ## process input file in batches
+        for frame_batch, frame_range in frame_batches.items():
+
+            if upscale_dir:
+                if os.path.exists(os.path.join(upscale_dir, str(frame_batch) + ".zip")):
+                    continue
+            else:
+                if os.path.exists(str(frame_batch) + ".zip"):
+                    continue
+
+            if scale == 1:
                 for frame in range(frame_range[0], frame_range[1] + 1):
-                    zip.write(str(frame) + ".png")
-        except Exception as e:
-            logging.error("Zipfile creation failed")
-            logging.error(e)
-            sys.exit("Error - Exiting")
+                    os.rename(
+                        str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
+                    )
+            else:
+                upscale_frames(
+                    frame_batch,
+                    frame_range[0],
+                    frame_range[1],
+                    input_file_tag,
+                    scale,
+                    gpus,
+                    workers_used,
+                    model_path,
+                    model_file,
+                    model_input,
+                    model_output,
+                )
 
-        for frame in range(frame_range[0], frame_range[1] + 1):
-            os.remove(str(frame) + ".png")
+            workers_used += len(gpus)
 
-    with open("upscaled.txt", "w") as f:
-        f.write("Upscaled")
+            zipfile_name = str(frame_batch) + ".zip"
+            if upscale_dir:
+                zipfile_name = os.path.join(upscale_dir, zipfile_name)
 
-    logging.info("Upscale only finished for " + input_file)
+            logging.info("Zipping png files into " + zipfile_name)
+
+            try:
+                with zipfile.ZipFile(
+                    zipfile_name,
+                    "w",
+                    compression=zipfile.ZIP_DEFLATED,
+                    compresslevel=0,
+                ) as zip:
+                    for frame in range(frame_range[0], frame_range[1] + 1):
+                        zip.write(str(frame) + ".png")
+            except Exception as e:
+                logging.error("Zipfile creation failed")
+                logging.error(e)
+                sys.exit("Error - Exiting")
+
+            for frame in range(frame_range[0], frame_range[1] + 1):
+                os.remove(str(frame) + ".png")
+
+        with open("upscaled.txt", "w") as f:
+            f.write("Upscaled")
+
+        logging.info("Upscale only finished for " + input_file)
 
 
 if __name__ == "__main__":
@@ -280,7 +277,7 @@ if __name__ == "__main__":
         "--scale",
         type=int,
         default=2,
-        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
+        help="Scale 1, 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
     )
     parser.add_argument(
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."

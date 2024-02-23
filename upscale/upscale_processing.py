@@ -8,14 +8,16 @@ import subprocess
 import tempfile
 import shutil
 import sys
+import math
+import json
+import multiprocessing
+import time
+
 import cv2
 from ncnn_vulkan import ncnn
 import numpy as np
-import math
-import json
 from PIL import Image
-import multiprocessing
-import time
+from wakepy import keep
 
 net = None
 model_input_name = "input"
@@ -349,7 +351,7 @@ def apply_denoise(input_file_name, output_file_name, denoise, remove):
 
     img = cv2.UMat(cv2.imread(input_file_name))
 
-    output = cv2.fastNlMeansDenoisingColored(img, None, denoise, 10, 5, 9)
+    output = cv2.fastNlMeansDenoisingColored(img, None, denoise, denoise, 5, 9)
 
     cv2.imwrite(output_file_name, output)
 
@@ -606,6 +608,7 @@ def merge_frames(
     start_frame,
     end_frame,
     frame_rate,
+    pix_fmt,
     output_format,
 ):
 
@@ -627,7 +630,7 @@ def merge_frames(
         "-frames:v",
         str(1 + end_frame - start_frame),
         "-pix_fmt",
-        "p010le",
+        pix_fmt,
         "-global_quality",
         "20",
         "-loglevel",
@@ -732,6 +735,7 @@ def process_file(
     output_file,
     ffmpeg,
     ffmpeg_encoder,
+    pix_fmt,
     scale,
     temp_dir,
     batch_size,
@@ -749,6 +753,7 @@ def process_file(
     :param output_file:
     :param ffmpeg:
     :param ffmpeg_encoder:
+    :param pix_fmt:
     :param scale:
     :param temp_dir:
     :param batch_size:
@@ -760,8 +765,8 @@ def process_file(
     :param log_dir:
     """
 
-    if scale not in [2, 4]:
-        sys.exit("Scale must be 2 or 4 - Exiting")
+    if scale not in [1, 2, 4]:
+        sys.exit("Scale must be 1, 2 or 4 - Exiting")
 
     if not os.path.exists(input_file):
         sys.exit(input_file + " not found")
@@ -839,131 +844,129 @@ def process_file(
     if resume_processing and os.path.exists("completed.txt"):
         sys.exit(input_file + " already processed - Exiting")
 
-    if sys.platform in ["win32", "cygwin", "darwin"]:
-        from wakepy import set_keepawake
+    with keep.running() as m:
 
-        set_keepawake(keep_screen_awake=False)
+        ## get metadata
+        info_dict = get_metadata(ffmpeg, input_file)
 
-    ## get metadata
-    info_dict = get_metadata(ffmpeg, input_file)
+        frames_count = info_dict["number_of_frames"]
+        frame_rate = info_dict["frame_rate"]
+        duration = info_dict["duration"]
 
-    frames_count = info_dict["number_of_frames"]
-    frame_rate = info_dict["frame_rate"]
-    duration = info_dict["duration"]
-
-    ## calculate frames per minute and batches
-    if batch_size > 0:
-        frames_per_batch = int(frame_rate * 60) * batch_size
-    else:
-        frames_per_batch = int(frames_count / (-1 * batch_size)) + 100
-
-    frame_batches = calc_batches(frames_count, frames_per_batch)
-
-    crop_detect = get_crop_detect(ffmpeg, input_file, duration)
-
-    extract_frames(
-        ffmpeg,
-        input_file,
-        crop_detect,
-        info_dict,
-        frames_count,
-        frame_batches,
-        extract_only,
-        output_format,
-    )
-
-    model_path = os.path.realpath(__file__).split(os.sep)
-    model_path = os.sep.join(model_path[:-2] + ["models"])
-
-    workers_used = 0
-    input_file_tag = "extract"
-
-    if denoise:
-        logging.info("Starting denoise touchup...")
-        workers_used += process_denoise(frames_count, input_file_tag, denoise)
-        input_file_tag = "denoise"
-
-    if "a" in models:
-        logging.info("Starting anime touchup...")
-
-        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
-        output_file_tag = "anime"
-
-        process_model(
-            frames_count,
-            model_path,
-            model_file,
-            1,
-            "input",
-            "output",
-            input_file_tag,
-            output_file_tag,
-            gpus,
-            workers_used,
-            remove=True,
-        )
-
-        workers_used += len(gpus)
-        input_file_tag = "anime"
-
-    logging.info("Starting upscale processing...")
-
-    if "r" in models:
-        model_file = "x_Valar_v1"
-        model_input = "input"
-        model_output = "output"
-    else:
-        model_file = "x_Compact_Pretrain"
-        model_input = "input"
-        model_output = "output"
-
-    ## process input file in batches:
-    for frame_batch, frame_range in frame_batches.items():
-
-        if os.path.exists(str(frame_batch) + "." + output_format):
-            continue
-
-        if scale == 1:
-            for frame in range(frame_range[0], frame_range[1] + 1):
-                os.rename(
-                    str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
-                )
+        ## calculate frames per minute and batches
+        if batch_size > 0:
+            frames_per_batch = int(frame_rate * 60) * batch_size
         else:
-            upscale_frames(
-                frame_batch,
-                frame_range[0],
-                frame_range[1],
-                input_file_tag,
-                scale,
-                gpus,
-                workers_used,
-                model_path,
-                model_file,
-                model_input,
-                model_output,
-            )
+            frames_per_batch = int(frames_count / (-1 * batch_size)) + 100
 
-            workers_used += len(gpus)
+        frame_batches = calc_batches(frames_count, frames_per_batch)
 
-        merge_frames(
+        crop_detect = get_crop_detect(ffmpeg, input_file, duration)
+
+        extract_frames(
             ffmpeg,
-            ffmpeg_encoder,
-            frame_batch,
-            frame_range[0],
-            frame_range[1],
-            frame_rate,
+            input_file,
+            crop_detect,
+            info_dict,
+            frames_count,
+            frame_batches,
+            extract_only,
             output_format,
         )
 
-    ## merge video files into a single video file
-    merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
+        model_path = os.path.realpath(__file__).split(os.sep)
+        model_path = os.sep.join(model_path[:-2] + ["models"])
 
-    with open("completed.txt", "w") as f:
-        f.write("Completed")
+        workers_used = 0
+        input_file_tag = "extract"
 
-    logging.info("Upscale video finished for " + output_file)
+        if denoise:
+            logging.info("Starting denoise touchup...")
+            workers_used += process_denoise(frames_count, input_file_tag, denoise)
+            input_file_tag = "denoise"
 
-    if not resume_processing:
-        logging.info("Cleaning up temp directory")
-        os.chdir(start_dir)
-        shutil.rmtree(temp_dir)
+        if "a" in models:
+            logging.info("Starting anime touchup...")
+
+            model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+            output_file_tag = "anime"
+
+            process_model(
+                frames_count,
+                model_path,
+                model_file,
+                1,
+                "input",
+                "output",
+                input_file_tag,
+                output_file_tag,
+                gpus,
+                workers_used,
+                remove=True,
+            )
+
+            workers_used += len(gpus)
+            input_file_tag = "anime"
+
+        logging.info("Starting upscale processing...")
+
+        if "r" in models:
+            model_file = "x_Valar_v1"
+            model_input = "input"
+            model_output = "output"
+        else:
+            model_file = "x_Compact_Pretrain"
+            model_input = "input"
+            model_output = "output"
+
+        ## process input file in batches:
+        for frame_batch, frame_range in frame_batches.items():
+
+            if os.path.exists(str(frame_batch) + "." + output_format):
+                continue
+
+            if scale == 1:
+                for frame in range(frame_range[0], frame_range[1] + 1):
+                    os.rename(
+                        str(frame) + "." + input_file_tag + ".png", str(frame) + ".png"
+                    )
+            else:
+                upscale_frames(
+                    frame_batch,
+                    frame_range[0],
+                    frame_range[1],
+                    input_file_tag,
+                    scale,
+                    gpus,
+                    workers_used,
+                    model_path,
+                    model_file,
+                    model_input,
+                    model_output,
+                )
+
+                workers_used += len(gpus)
+
+            merge_frames(
+                ffmpeg,
+                ffmpeg_encoder,
+                frame_batch,
+                frame_range[0],
+                frame_range[1],
+                frame_rate,
+                pix_fmt,
+                output_format,
+            )
+
+        ## merge video files into a single video file
+        merge_files(ffmpeg, frame_batch, output_file, output_format, log_dir)
+
+        with open("completed.txt", "w") as f:
+            f.write("Completed")
+
+        logging.info("Upscale video finished for " + output_file)
+
+        if not resume_processing:
+            logging.info("Cleaning up temp directory")
+            os.chdir(start_dir)
+            shutil.rmtree(temp_dir)
