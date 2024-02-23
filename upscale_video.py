@@ -24,6 +24,12 @@ if __name__ == "__main__":
         help="ffmpeg encoder for video file. Default is av1_qsv.",
     )
     parser.add_argument(
+        "-p",
+        "--pix_fmt",
+        default="p010le",
+        help="pixel format used when merging frames into a video file. Default is p010le which is 10 bit color.",
+    )
+    parser.add_argument(
         "-m",
         "--models",
         help="Adds additional processing. 'a' for anime videos, 'n={denoise level}' for noise reduction and 'r' for real life imaging. Example: -m a,n=3,r to use all three options.",
@@ -33,7 +39,7 @@ if __name__ == "__main__":
         "--scale",
         type=int,
         default=2,
-        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
+        help="Scale 1, 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
     )
     parser.add_argument(
         "-t", "--temp_dir", help="Temp directory. Default is tempfile.gettempdir()."

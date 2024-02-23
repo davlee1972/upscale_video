@@ -31,8 +31,8 @@ def process_image(
         stream=sys.stdout,
     )
 
-    if scale not in [2, 4]:
-        sys.exit("Scale must be 2 or 4")
+    if scale not in [1, 2, 4]:
+        sys.exit("Scale must be 1, 2 or 4")
 
     if models:
         models = models.split(",")
@@ -109,37 +109,52 @@ def process_image(
         workers_used += len(gpus)
         input_file_tag = "anime"
 
-    logging.info("Starting upscale processing...")
-
     for frame in input_frames:
         try:
             os.remove(str(frame) + ".png")
         except:
             pass
 
-    if "r" in models:
-        model_file = "x_Valar_v1"
-        model_input = "input"
-        model_output = "output"
-    else:
-        model_file = "x_Compact_Pretrain"
-        model_input = "input"
-        model_output = "output"
+    if scale > 1:
 
-    upscale_frames(
-        input_frames,
-        frame,
-        frame,
-        input_file_tag,
-        scale,
-        gpus,
-        workers_used,
-        model_path,
-        model_file,
-        model_input,
-        model_output,
-        remove=False,
-    )
+        logging.info("Starting upscale processing...")
+
+        if "r" in models:
+            model_file = "x_Valar_v1"
+            model_input = "input"
+            model_output = "output"
+        else:
+            model_file = "x_Compact_Pretrain"
+            model_input = "input"
+            model_output = "output"
+
+        upscale_frames(
+            input_frames,
+            frame,
+            frame,
+            input_file_tag,
+            scale,
+            gpus,
+            workers_used,
+            model_path,
+            model_file,
+            model_input,
+            model_output,
+            remove=False,
+        )
+
+    if models:
+        for frame in input_frames:
+            if scale > 1:
+                shutil.move(
+                    os.path.join(output_dir, str(frame) + ".png"),
+                    os.path.join(output_dir, str(frame) + "." + ".".join(models) + ".png"),
+                )
+            else:
+                shutil.move(
+                    os.path.join(output_dir, str(frame) + ".denoise.png"),
+                    os.path.join(output_dir, str(frame) + "." + ".".join(models) + ".png"),
+                )
 
     logging.info("Completed")
 
@@ -169,7 +184,7 @@ if __name__ == "__main__":
         "--scale",
         type=int,
         default=2,
-        help="Scale 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
+        help="Scale 1, 2 or 4. Default is 2. If using real life imaging (4x model), scale will autoset to 4.",
     )
     parser.add_argument(
         "-m",
