@@ -49,7 +49,9 @@ def process_image(
         if denoise > 30:
             denoise = 30
         if denoise <= 0:
-            denoise = None
+            denoise = 0
+    else:
+        denoise = 0
 
     if gpus:
         try:
@@ -77,84 +79,87 @@ def process_image(
     os.chdir(output_dir)
 
     workers_used = 0
-    input_file_tag = "extract"
+    for d in range(0, denoise + 1):
+        input_file_tag = "extract"
 
-    if denoise:
         logging.info("Starting denoise touchup...")
         workers_used += process_denoise(
-            input_frames, input_file_tag, denoise, remove=False
+            input_frames, input_file_tag, d, remove=False
         )
         input_file_tag = "denoise"
 
-    if "a" in models:
-        logging.info("Starting anime touchup...")
+        if "a" in models:
+            logging.info("Starting anime touchup...")
 
-        model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
-        output_file_tag = "anime"
+            model_file = "x_HurrDeblur_SubCompact_nf24-nc8_244k_net_g"
+            output_file_tag = "anime"
 
-        process_model(
-            input_frames,
-            model_path,
-            model_file,
-            1,
-            "input",
-            "output",
-            input_file_tag,
-            output_file_tag,
-            gpus,
-            workers_used,
-            remove=False,
-        )
+            process_model(
+                input_frames,
+                model_path,
+                model_file,
+                1,
+                "input",
+                "output",
+                input_file_tag,
+                output_file_tag,
+                gpus,
+                workers_used,
+                remove=False,
+            )
 
-        workers_used += len(gpus)
-        input_file_tag = "anime"
+            workers_used += len(gpus)
+            input_file_tag = "anime"
+
+        if scale > 1:
+
+            logging.info("Starting upscale processing...")
+
+            if "r" in models:
+                model_file = "x_Valar_v1"
+                model_input = "input"
+                model_output = "output"
+            else:
+                model_file = "x_Compact_Pretrain"
+                model_input = "input"
+                model_output = "output"
+
+            upscale_frames(
+                input_frames,
+                frame,
+                frame,
+                input_file_tag,
+                scale,
+                gpus,
+                workers_used,
+                model_path,
+                model_file,
+                model_input,
+                model_output,
+                remove=False,
+            )
+
+            workers_used += len(gpus)
+
+        if models:
+            for frame in input_frames:
+                if scale > 1:
+                    shutil.move(
+                        os.path.join(output_dir, str(frame) + ".png"),
+                        os.path.join(output_dir, str(frame) + ".n=" + str(d) + ".png"),
+                    )
+                else:
+                    shutil.move(
+                        os.path.join(output_dir, str(frame) + ".denoise.png"),
+                        os.path.join(output_dir, str(frame) + ".n=" + str(d) + ".png"),
+                    )
 
     for frame in input_frames:
         try:
-            os.remove(str(frame) + ".png")
+            os.remove(str(frame) + ".extract.png")
+            os.remove(str(frame) + ".denoise.png")
         except:
             pass
-
-    if scale > 1:
-
-        logging.info("Starting upscale processing...")
-
-        if "r" in models:
-            model_file = "x_Valar_v1"
-            model_input = "input"
-            model_output = "output"
-        else:
-            model_file = "x_Compact_Pretrain"
-            model_input = "input"
-            model_output = "output"
-
-        upscale_frames(
-            input_frames,
-            frame,
-            frame,
-            input_file_tag,
-            scale,
-            gpus,
-            workers_used,
-            model_path,
-            model_file,
-            model_input,
-            model_output,
-            remove=False,
-        )
-
-    if models:
-        for frame in input_frames:
-            if scale > 1:
-                shutil.move(
-                    os.path.join(output_dir, str(frame) + ".png"),
-                    os.path.join(output_dir, str(frame) + "." + ".".join(models) + ".png"),
-                )
-            else:
-                shutil.move(
-                    os.path.join(output_dir, str(frame) + ".denoise.png"),
-                    os.path.join(output_dir, str(frame) + "." + ".".join(models) + ".png"),
-                )
 
     logging.info("Completed")
 
